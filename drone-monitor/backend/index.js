@@ -114,13 +114,29 @@ http.createServer((req, res) => {
     return;
   }
 
-  // Dashboard pega dados
+  // Dashboard pega dados (com mapeamento de campos curtos para longos)
   if (p.pathname === '/dash') {
     const id = p.query.id || 'A001';
     const d = drones.get(id);
     if (d && Date.now() - d.time < 120000) {
+      const raw = d.data;
+      // Mapeia nomes curtos (DeltaEncoder) para nomes longos (dashboard)
+      const mapped = {
+        speed: raw.sp ?? raw.speed ?? null,
+        altitude: raw.alt ?? raw.altitude ?? null,
+        batteryPercent: raw.bat ?? raw.batteryPercent ?? null,
+        tankLevel: raw.tk ?? raw.tankLevel ?? null,
+        flowRate: raw.fr ?? raw.flowRate ?? null,
+        hectaresApplied: raw.ha ?? raw.hectaresApplied ?? null,
+        signalStrength: raw.sig ?? raw.signalStrength ?? null,
+        rtkStatus: raw.rtk ?? raw.rtkStatus ?? null,
+        operationalStatus: raw.st ?? raw.operationalStatus ?? null,
+        systemAlerts: raw.alerts ?? raw.systemAlerts ?? [],
+        ts: raw.ts,
+        id: raw.id
+      };
       res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify(d.data));
+      res.end(JSON.stringify(mapped));
     } else {
       res.writeHead(200, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({ offline: true }));
