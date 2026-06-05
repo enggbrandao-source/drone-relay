@@ -4,10 +4,11 @@ const url = require('url');
 /**
  * Servidor HTTP para Render Free - Drone Relay Cloud
  * Recebe POST do RC, serve dashboard via HTTP polling
+ * Acumula dados de delta packets
  */
 
 const PORT = process.env.PORT || 8080;
-const drones = new Map();
+const drones = new Map(); // { id: { data: {}, time: Date.now() } }
 
 const DASHBOARD_HTML = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -83,6 +84,30 @@ setInterval(poll,2000);
 </script>
 </body></html>`;
 
+// Mapeamento de nomes curtos -> longos
+const FIELD_MAP = {
+  sp: 'speed',
+  alt: 'altitude',
+  bat: 'batteryPercent',
+  tk: 'tankLevel',
+  fr: 'flowRate',
+  ha: 'hectaresApplied',
+  sig: 'signalStrength',
+  rtk: 'rtkStatus',
+  st: 'operationalStatus',
+  alerts: 'systemAlerts',
+  speed: 'speed',
+  altitude: 'altitude',
+  batteryPercent: 'batteryPercent',
+  tankLevel: 'tankLevel',
+  flowRate: 'flowRate',
+  hectaresApplied: 'hectaresApplied',
+  signalStrength: 'signalStrength',
+  rtkStatus: 'rtkStatus',
+  operationalStatus: 'operationalStatus',
+  systemAlerts: 'systemAlerts'
+};
+
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -90,14 +115,14 @@ http.createServer((req, res) => {
 
   const p = url.parse(req.url, true);
 
-  // Dashboard
+  // Dashboard HTML
   if (p.pathname === '/dashboard.html' || p.pathname === '/') {
     res.writeHead(200, {'Content-Type': 'text/html'});
     res.end(DASHBOARD_HTML);
     return;
   }
 
-  // Drone envia telemetria
+  // Drone envia telemetria (delta ou full frame)
   if (p.pathname === '/drone' && req.method === 'POST') {
     let b = '';
     req.on('data', c => b += c);
@@ -105,38 +130,37 @@ http.createServer((req, res) => {
       try {
         const j = JSON.parse(b);
         const id = j._id || j.id || 'A001';
-        drones.set(id, { data: j, time: Date.now() });
+
+        // Get existing accumulator for this drone
+        const existing = drones.get(id);
+        const existingData = existing ? existing.data : {};
+
+        // Merge new fields into accumulator (handle both short and long names)
+        const merged = { ...existingData };
+        for (const [key, value] of Object.entries(j)) {
+          if (key.startsWith('_')) continue; // skip metadata
+          const mappedKey = FIELD_MAP[key] || key;
+          if (mappedKey) {
+            merged[mappedKey] = value;
+          }
+        }
+
+        drones.set(id, { data: merged, time: Date.now() });
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({ ok: true, id }));
-        console.log('DRONE', id, new Date().toISOString());
+        console.log('DRONE', id, 'fields:', Object.keys(merged).join(','), new Date().toISOString());
       } catch (e) { res.writeHead(400); res.end(); }
     });
     return;
   }
 
-  // Dashboard pega dados (com mapeamento de campos curtos para longos)
+  // Dashboard pega dados
   if (p.pathname === '/dash') {
     const id = p.query.id || 'A001';
     const d = drones.get(id);
     if (d && Date.now() - d.time < 120000) {
-      const raw = d.data;
-      // Mapeia nomes curtos (DeltaEncoder) para nomes longos (dashboard)
-      const mapped = {
-        speed: raw.sp ?? raw.speed ?? null,
-        altitude: raw.alt ?? raw.altitude ?? null,
-        batteryPercent: raw.bat ?? raw.batteryPercent ?? null,
-        tankLevel: raw.tk ?? raw.tankLevel ?? null,
-        flowRate: raw.fr ?? raw.flowRate ?? null,
-        hectaresApplied: raw.ha ?? raw.hectaresApplied ?? null,
-        signalStrength: raw.sig ?? raw.signalStrength ?? null,
-        rtkStatus: raw.rtk ?? raw.rtkStatus ?? null,
-        operationalStatus: raw.st ?? raw.operationalStatus ?? null,
-        systemAlerts: raw.alerts ?? raw.systemAlerts ?? [],
-        ts: raw.ts,
-        id: raw.id
-      };
       res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify(mapped));
+      res.end(JSON.stringify(d.data));
     } else {
       res.writeHead(200, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({ offline: true }));
@@ -144,7 +168,7 @@ http.createServer((req, res) => {
     return;
   }
 
-  // Ping
+  // Ping / Health
   if (p.pathname === '/ping' || p.pathname === '/health') {
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({ status: 'ok', drones: Array.from(drones.keys()) }));
