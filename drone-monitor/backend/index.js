@@ -42,15 +42,15 @@ select { display:block; margin:auto; padding:8px 12px; border-radius:6px; border
 <div class="alert" id="alert"></div>
 <script>
 const fields=[
-  {k:'speed',l:'Velocidade',u:'km/h'},
-  {k:'altitude',l:'Altitude',u:'m'},
-  {k:'batteryPercent',l:'Bateria',u:'%'},
-  {k:'tankLevel',l:'Tanque',u:'L'},
-  {k:'flowRate',l:'Vazao',u:'L/min'},
-  {k:'hectaresApplied',l:'Hectares',u:'ha'},
-  {k:'signalStrength',l:'Sinal',u:'%'},
-  {k:'rtkStatus',l:'RTK',u:''},
-  {k:'operationalStatus',l:'Status',u:''}
+  {k:'speedKmh',l:'Velocidade',u:'km/h',round:1},
+  {k:'altitude',l:'Altitude',u:'m',round:1},
+  {k:'batteryPercent',l:'Bateria',u:'%',round:0},
+  {k:'tankLiters',l:'Tanque',u:'L',round:2},
+  {k:'flowRate',l:'Vazao',u:'L/min',round:1},
+  {k:'hectaresApplied',l:'Hectares',u:'ha',round:2},
+  {k:'signalStrength',l:'Sinal',u:'%',round:0},
+  {k:'rtkStatus',l:'RTK',u:'',round:0},
+  {k:'operationalStatus',l:'Status',u:'',round:0}
 ];
 const cards=document.getElementById('cards');
 fields.forEach(f=>{
@@ -58,6 +58,11 @@ fields.forEach(f=>{
   d.innerHTML=\`<div class="label">\${f.l}</div><div class="value" id="v-\${f.k}">--</div><div class="unit">\${f.u}</div>\`;
   cards.appendChild(d);
 });
+function fmt(v, rnd) {
+  if (v == null) return '--';
+  if (typeof v === 'number') return v.toFixed(rnd);
+  return v;
+}
 async function poll(){
   try{
     const id=document.getElementById('droneSelect').value;
@@ -69,7 +74,7 @@ async function poll(){
     document.getElementById('status').className='status online';
     fields.forEach(f=>{
       const el=document.getElementById('v-'+f.k);
-      if(el)el.textContent=(d[f.k]!=null?d[f.k]:'--');
+      if(el)el.textContent=fmt(d[f.k], f.round);
     });
     const t=new Date().toLocaleTimeString('pt-BR');
     document.getElementById('timer').textContent='Ultima atualizacao: '+t;
@@ -90,6 +95,8 @@ const FIELD_MAP = {
   alt: 'altitude',
   bat: 'batteryPercent',
   tk: 'tankLevel',
+  tkl: 'tankLiters',
+  skm: 'speedKmh',
   fr: 'flowRate',
   ha: 'hectaresApplied',
   sig: 'signalStrength',
@@ -100,6 +107,8 @@ const FIELD_MAP = {
   altitude: 'altitude',
   batteryPercent: 'batteryPercent',
   tankLevel: 'tankLevel',
+  tankLiters: 'tankLiters',
+  speedKmh: 'speedKmh',
   flowRate: 'flowRate',
   hectaresApplied: 'hectaresApplied',
   signalStrength: 'signalStrength',
@@ -144,6 +153,13 @@ http.createServer((req, res) => {
             merged[mappedKey] = value;
           }
         }
+
+        // Arredonda valores para evitar decimais infinitos
+        if (merged.speedKmh != null) merged.speedKmh = Math.round(merged.speedKmh * 10) / 10;
+        if (merged.altitude != null) merged.altitude = Math.round(merged.altitude * 10) / 10;
+        if (merged.tankLiters != null) merged.tankLiters = Math.round(merged.tankLiters * 100) / 100;
+        if (merged.flowRate != null) merged.flowRate = Math.round(merged.flowRate * 10) / 10;
+        if (merged.hectaresApplied != null) merged.hectaresApplied = Math.round(merged.hectaresApplied * 100) / 100;
 
         drones.set(id, { data: merged, time: Date.now() });
         res.writeHead(200, {'Content-Type': 'application/json'});
