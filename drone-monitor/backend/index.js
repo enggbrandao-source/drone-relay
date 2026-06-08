@@ -48,7 +48,7 @@ const fields=[
   {k:'tankLiters',l:'Tanque',u:'L',round:2},
   {k:'flowRate',l:'Vazao',u:'L/min',round:1},
   {k:'hectaresApplied',l:'Hectares',u:'ha',round:2},
-  {k:'signalStrength',l:'Sinal',u:'%',round:0},
+  {k:'signalStrength',l:'Satelites',u:'sats',round:0},
   {k:'rtkStatus',l:'RTK',u:'',round:0},
   {k:'operationalStatus',l:'Status',u:'',round:0}
 ];
@@ -79,6 +79,7 @@ async function poll(){
     const t=new Date().toLocaleTimeString('pt-BR');
     document.getElementById('timer').textContent='Ultima atualizacao: '+t;
     document.getElementById('alert').textContent=d.systemAlerts&&d.systemAlerts.length?d.systemAlerts.join('; '):'';
+    if(d._version) document.getElementById('version').textContent='APK v'+d._version;
   }catch(e){
     document.getElementById('status').textContent='OFFLINE - RC Plus desconectado';
     document.getElementById('status').className='status offline';
@@ -87,6 +88,7 @@ async function poll(){
 poll();
 setInterval(poll,2000);
 </script>
+<div style="text-align:center;margin-top:8px;font-size:11px;color:#666" id="version"></div>
 </body></html>`;
 
 // Mapeamento de nomes curtos -> longos
