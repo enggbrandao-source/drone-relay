@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// === AUTENTICAÇÃO ===
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // hash bcrypt
+  name      String
+  role      String   @default("cliente") // admin, cliente, piloto
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  company   Company? @relation(fields: [companyId], references: [id])
+  companyId String?
+  
+  drones    Drone[]
+}
+
+// === EMPRESA/CLIENTE ===
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  plan      String   @default("free") // free, basic, pro
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  users     User[]
+  drones    Drone[]
+  farms     Farm[]
+}
+
+// === DRONE ===
+model Drone {
+  id          String   @id @default(uuid())
+  code        String   @unique  // código informado pelo piloto: AGRAS001
+  model       String   @default("DJI Agras")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company  @relation(fields: [companyId], references: [id])
+  companyId   String
+  
+  pilot       User?    @relation(fields: [pilotId], references: [id])
+  pilotId     String?
+  
+  farm        Farm?    @relation(fields: [farmId], references: [id])
+  farmId      String?
+  
+  // Telemetria em tempo real (último pacote)
+  lastLat     Float?
+  lastLon     Float?
+  lastData    String?  // JSON do último pacote
+  lastSeen    DateTime?
+  
+  sessions    DroneSession[]
+  snapshots   TelemetrySnapshot[]
+}
+
+// === FAZENDA ===
+model Farm {
+  id        String   @id @default(uuid())
+  name      String
+  location  String?  // cidade/estado
+  boundary  String?  // GeoJSON do polígono
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  company   Company  @relation(fields: [companyId], references: [id])
+  companyId String
+  
+  drones    Drone[]
+}
+
+// === TELEMETRIA (histórico) ===
+model TelemetrySnapshot {
+  id              Int      @id @default(autoincrement())
+  droneId         String
+  timestamp       DateTime @default(now())
+  speed           Float?
+  altitude        Float?
+  flowRate        Float?
+  hectaresApplied Float?
+  rtkStatus       String?
+  signalStrength  Int?
+  batteryPercent  Int?
+  tankLiters      Float?
+  latitude        Float?
+  longitude       Float?
+  operationalStatus String?
+  alerts          String?
+  rawJson         String?
+  
+  drone           Drone    @relation(fields: [droneId], references: [id])
+  
+  @@index([droneId, timestamp])
+}
+
+// === SESSÃO DE VOO ===
+model DroneSession {
+  id          Int      @id @default(autoincrement())
+  droneId     String
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  pilotName   String?
+  farmName    String?
+  startLat    Float?
+  startLon    Float?
+  totalArea   Float?
+  totalFlightTime Int?
+  
+  drone       Drone    @relation(fields: [droneId], references: [id])
+  
+  @@index([droneId, startedAt])
+}
