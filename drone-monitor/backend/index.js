@@ -18,7 +18,12 @@ const ipGeoCache = new Map();
 
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) return forwarded.split(',')[0].trim();
+  if (forwarded) {
+    const first = forwarded.split(',')[0].trim();
+    if (first && first !== '127.0.0.1') return first;
+  }
+  const realIp = req.headers['x-real-ip'];
+  if (realIp && realIp !== '127.0.0.1') return realIp;
   return req.connection.remoteAddress || req.socket.remoteAddress;
 }
 
@@ -220,6 +225,19 @@ http.createServer((req, res) => {
   // App (redireciona para dashboard por enquanto)
   if (p.pathname === '/app' || p.pathname === '/app/' || p.pathname === '/app/login') {
     res.writeHead(302, {'Location': '/dashboard.html'}); res.end(); return;
+  }
+
+  // Debug - ver IP que chega
+  if (p.pathname === '/debug') {
+    const clientIp = getClientIp(req);
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({
+      clientIp,
+      headers: req.headers,
+      remoteAddress: req.connection.remoteAddress,
+      socketRemoteAddress: req.socket.remoteAddress
+    }));
+    return;
   }
 
   // Drone envia telemetria
