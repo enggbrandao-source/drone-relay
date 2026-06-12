@@ -121,19 +121,45 @@ const MAP_HTML = `<!DOCTYPE html>
 <script>
 const map=L.map('map').setView([-14.2,-51.9],4);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OpenStreetMap'}).addTo(map);
-let markers={};
+let markers={}, viewSet=false;
+function fmt(v,r){if(v==null)return'--';if(typeof v==='number')return v.toFixed(r);return v}
 async function refresh(){
   try{
     const r=await fetch('/dash-all',{cache:'no-store'});const data=await r.json();
-    for(const id in data){
+    const ids=Object.keys(data).sort();let firstValid=null;
+    for(const id of ids){
       const d=data[id];
-      const lat=d.latitude!=null?d.latitude:-14.2;
-      const lon=d.longitude!=null?d.longitude:-51.9;
-      const popup='<b>'+id+'</b><br>Piloto: '+(d._pilot||'-')+'<br>Fazenda: '+(d._farm||'-')+'<br>Status: '+(d.operationalStatus||'-')+'<br>Bateria: '+(d.batteryPercent||'-')+'%<br>Tanque: '+(d.tankLiters||'-')+' L<br>Vel: '+(d.speedKmh||'-')+' km/h';
-      if(markers[id]){markers[id].setLatLng([lat,lon]).setPopupContent(popup);}
-      else{markers[id]=L.marker([lat,lon]).addTo(map).bindPopup(popup);}
+      const lat=d.latitude!=null?d.latitude:null;
+      const lon=d.longitude!=null?d.longitude:null;
+      const hasCoords=lat!=null&&lon!=null;
+      const online=hasCoords && d.offline!==true;
+      if(hasCoords&&!firstValid)firstValid={lat,lon};
+      const color=online?'#00FF88':'#FF6B2C';
+      const popup='<div style="min-width:160px">'+
+        '<div style="font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px">'+id+'</div>'+
+        '<div style="font-size:11px;color:#aaa">'+(online?'<span style="color:#00FF88">● ONLINE</span>':'<span style="color:#FF6B2C">● OFFLINE</span>')+'</div>'+
+        '<hr style="border:0;border-top:1px solid #333;margin:6px 0">'+
+        '<div style="font-size:12px">Piloto: <b>'+(d._pilot||'-')+'</b><br>Fazenda: <b>'+(d._farm||'-')+'</b></div>'+
+        '<hr style="border:0;border-top:1px solid #333;margin:6px 0">'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">'+
+        '<div>Bateria: <b>'+d.batteryPercent+'%</b></div>'+
+        '<div>Tanque: <b>'+fmt(d.tankLiters,2)+'L</b></div>'+
+        '<div>Vel: <b>'+fmt(d.speedKmh,1)+'km/h</b></div>'+
+        '<div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div>'+
+        '<div>Sats: <b>'+(d.signalStrength||'-')+'</b></div>'+
+        '<div>Status: <b>'+(d.operationalStatus||'-')+'</b></div>'+
+        '</div></div>';
+      if(markers[id]){
+        markers[id].marker.setLatLng([lat||-14.2,lon||-51.9]).setPopupContent(popup);
+        if(markers[id].circle)markers[id].circle.setLatLng([lat||-14.2,lon||-51.9]);
+      }else{
+        const m=L.marker([lat||-14.2,lon||-51.9]).addTo(map).bindPopup(popup);
+        const c=L.circleMarker([lat||-14.2,lon||-51.9],{radius:8,fillColor:color,color:color,weight:2,fillOpacity:0.6}).addTo(map);
+        markers[id]={marker:m,circle:c};
+      }
     }
-    for(const id in markers){if(!data[id]){map.removeLayer(markers[id]);delete markers[id];}}
+    for(const id in markers){if(!data[id]){map.removeLayer(markers[id].marker);if(markers[id].circle)map.removeLayer(markers[id].circle);delete markers[id];}}
+    if(firstValid&&!viewSet){map.setView([firstValid.lat,firstValid.lon],13);viewSet=true;}
   }catch(e){console.error(e)}
 }
 refresh();setInterval(refresh,5000);
