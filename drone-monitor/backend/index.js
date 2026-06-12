@@ -48,6 +48,7 @@ h2{text-align:center;color:#00FF88;margin-bottom:6px;font-size:20px}
 <body>
 <h2>AGRYON CONTROL</h2>
 <div class="subtitle">Monitoramento de Frota de Drones</div>
+<div style="text-align:center;margin-bottom:10px"><a href="/map" style="color:#00FF88;font-size:12px;text-decoration:none">📍 Ver Mapa de Localizacao</a></div>
 <div class="filters">
   <button class="active" onclick="setFilter('all')">Todos</button>
   <button onclick="setFilter('online')">Online</button>
@@ -96,6 +97,49 @@ poll();setInterval(poll,3000);
 </script>
 </body></html>`;
 
+const MAP_HTML = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agryon Control - Mapa</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0b0f19;color:#e0e0e0}
+#map{height:100vh;width:100vw}
+.leaflet-popup-content-wrapper{background:#111;border:1px solid rgba(0,255,136,0.3);color:#fff}
+.leaflet-popup-content{color:#fff;font-size:12px}
+.leaflet-popup-tip{background:#111}
+.overlay{position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(11,15,25,0.95);padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:12px;color:#9aa0a6;z-index:1000}
+.overlay a{color:#00FF88;text-decoration:none;margin-left:8px}
+</style>
+</head>
+<body>
+<div class="overlay">AGRYON GPS <a href="/dashboard.html">Voltar</a></div>
+<div id="map"></div>
+<script>
+const map=L.map('map').setView([-14.2,-51.9],4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OpenStreetMap'}).addTo(map);
+let markers={};
+async function refresh(){
+  try{
+    const r=await fetch('/dash-all',{cache:'no-store'});const data=await r.json();
+    for(const id in data){
+      const d=data[id];
+      const lat=d.latitude!=null?d.latitude:-14.2;
+      const lon=d.longitude!=null?d.longitude:-51.9;
+      const popup='<b>'+id+'</b><br>Piloto: '+(d._pilot||'-')+'<br>Fazenda: '+(d._farm||'-')+'<br>Status: '+(d.operationalStatus||'-')+'<br>Bateria: '+(d.batteryPercent||'-')+'%<br>Tanque: '+(d.tankLiters||'-')+' L<br>Vel: '+(d.speedKmh||'-')+' km/h';
+      if(markers[id]){markers[id].setLatLng([lat,lon]).setPopupContent(popup);}
+      else{markers[id]=L.marker([lat,lon]).addTo(map).bindPopup(popup);}
+    }
+    for(const id in markers){if(!data[id]){map.removeLayer(markers[id]);delete markers[id];}}
+  }catch(e){console.error(e)}
+}
+refresh();setInterval(refresh,5000);
+</script>
+</body></html>`;
+
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -106,6 +150,11 @@ http.createServer((req, res) => {
   // Dashboard publico
   if (p.pathname === '/' || p.pathname === '/dashboard.html') {
     res.writeHead(200, {'Content-Type': 'text/html'}); res.end(DASHBOARD_HTML); return;
+  }
+
+  // Mapa GPS
+  if (p.pathname === '/map') {
+    res.writeHead(200, {'Content-Type': 'text/html'}); res.end(MAP_HTML); return;
   }
 
   // App (redireciona para dashboard por enquanto)
