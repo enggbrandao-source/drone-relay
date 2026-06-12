@@ -236,7 +236,7 @@ http.createServer((req, res) => {
 
         const merged = { ...existingData };
         for (const [key, value] of Object.entries(j)) {
-          if (key.startsWith('_')) continue;
+          if (key.startsWith('_') && key !== '_pilot' && key !== '_farm') continue;
           const mappedKey = FIELD_MAP[key] || key;
           if (mappedKey) merged[mappedKey] = value;
         }
