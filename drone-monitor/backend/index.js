@@ -29,25 +29,45 @@ function getClientIp(req) {
 
 function fetchIpLocation(ip) {
   return new Promise((resolve) => {
+    console.log('[GEO] Consultando IP:', ip);
     if (!ip || ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+      console.log('[GEO] IP ignorado (local/privado):', ip);
       resolve(null); return;
     }
-    if (ipGeoCache.has(ip)) { resolve(ipGeoCache.get(ip)); return; }
+    if (ipGeoCache.has(ip)) { 
+      console.log('[GEO] Cache hit:', ip);
+      resolve(ipGeoCache.get(ip)); return; 
+    }
     const apiUrl = `https://ipapi.co/${ip}/json/`;
-    https.get(apiUrl, { timeout: 5000 }, (apiRes) => {
+    console.log('[GEO] Chamando API:', apiUrl);
+    https.get(apiUrl, { timeout: 8000 }, (apiRes) => {
       let data = '';
       apiRes.on('data', chunk => data += chunk);
       apiRes.on('end', () => {
         try {
+          console.log('[GEO] Resposta API:', data.substring(0, 200));
           const j = JSON.parse(data);
           if (j.latitude != null && j.longitude != null) {
             const loc = { lat: j.latitude, lon: j.longitude, city: j.city, region: j.region };
             ipGeoCache.set(ip, loc);
+            console.log('[GEO] Sucesso:', loc);
             resolve(loc);
-          } else { resolve(null); }
-        } catch (e) { resolve(null); }
+          } else { 
+            console.log('[GEO] API sem coordenadas:', j);
+            resolve(null); 
+          }
+        } catch (e) { 
+          console.log('[GEO] Erro parse:', e.message);
+          resolve(null); 
+        }
       });
-    }).on('error', () => resolve(null)).on('timeout', () => resolve(null));
+    }).on('error', (e) => {
+      console.log('[GEO] Erro request:', e.message);
+      resolve(null);
+    }).on('timeout', () => {
+      console.log('[GEO] Timeout');
+      resolve(null);
+    });
   });
 }
 
@@ -265,13 +285,19 @@ http.createServer((req, res) => {
         // Geolocalizacao por IP se nao veio do APK
         if (merged.latitude == null || merged.longitude == null) {
           const clientIp = getClientIp(req);
+          console.log('[GEO] Drone', id, 'IP detectado:', clientIp);
           const loc = await fetchIpLocation(clientIp);
           if (loc) {
             merged.latitude = loc.lat;
             merged.longitude = loc.lon;
             merged._geoCity = loc.city;
             merged._geoRegion = loc.region;
+            console.log('[GEO] Drone', id, 'localizado em:', loc.city, loc.region);
+          } else {
+            console.log('[GEO] Drone', id, 'falha ao localizar IP:', clientIp);
           }
+        } else {
+          console.log('[GEO] Drone', id, 'ja tem coords:', merged.latitude, merged.longitude);
         }
 
         drones.set(id, { data: merged, time: Date.now() });
