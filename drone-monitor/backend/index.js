@@ -302,9 +302,9 @@ http.createServer((req, res) => {
       lat: d.data.latitude, lon: d.data.longitude, city: d.data._geoCity
     }));
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({ status: 'ok', version: '2.3.4', drones: droneList }));
+    res.end(JSON.stringify({ status: 'ok', version: '2.3.5', drones: droneList }));
     return;
   }
 
   res.writeHead(404); res.end('Not found');
-}).listen(PORT, () => console.log('[AGRYON] v2.3.4 — Porta', PORT));
+}).listen(PORT, () => console.log('[AGRYON] v2.3.5 — Porta', PORT));
