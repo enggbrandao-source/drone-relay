@@ -38,7 +38,9 @@ function fetchIpLocation(ip) {
       console.log('[GEO] Cache hit:', ip);
       resolve(ipGeoCache.get(ip)); return; 
     }
-    const apiUrl = `https://ipapi.co/${ip}/json/`;
+    
+    // Tenta ipinfo.io (mais confiavel)
+    const apiUrl = `https://ipinfo.io/${ip}/json`;
     console.log('[GEO] Chamando API:', apiUrl);
     https.get(apiUrl, { timeout: 8000 }, (apiRes) => {
       let data = '';
@@ -47,8 +49,9 @@ function fetchIpLocation(ip) {
         try {
           console.log('[GEO] Resposta API:', data.substring(0, 200));
           const j = JSON.parse(data);
-          if (j.latitude != null && j.longitude != null) {
-            const loc = { lat: j.latitude, lon: j.longitude, city: j.city, region: j.region };
+          if (j.loc) {
+            const [lat, lon] = j.loc.split(',').map(Number);
+            const loc = { lat, lon, city: j.city, region: j.region };
             ipGeoCache.set(ip, loc);
             console.log('[GEO] Sucesso:', loc);
             resolve(loc);
