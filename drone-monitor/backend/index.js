@@ -1,5 +1,6 @@
 const http = require('http');
 const url = require('url');
+const https = require('https');
 
 const PORT = process.env.PORT || 8080;
 const drones = new Map();
@@ -11,6 +12,39 @@ const FIELD_MAP = {
   fr: 'flowRate', ha: 'hectaresApplied', sig: 'signalStrength',
   rtk: 'rtkStatus', st: 'operationalStatus'
 };
+
+// Cache de geolocalizacao por IP (evita consultar API toda hora)
+const ipGeoCache = new Map();
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.connection.remoteAddress || req.socket.remoteAddress;
+}
+
+function fetchIpLocation(ip) {
+  return new Promise((resolve) => {
+    if (!ip || ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+      resolve(null); return;
+    }
+    if (ipGeoCache.has(ip)) { resolve(ipGeoCache.get(ip)); return; }
+    const apiUrl = `https://ipapi.co/${ip}/json/`;
+    https.get(apiUrl, { timeout: 5000 }, (apiRes) => {
+      let data = '';
+      apiRes.on('data', chunk => data += chunk);
+      apiRes.on('end', () => {
+        try {
+          const j = JSON.parse(data);
+          if (j.latitude != null && j.longitude != null) {
+            const loc = { lat: j.latitude, lon: j.longitude, city: j.city, region: j.region };
+            ipGeoCache.set(ip, loc);
+            resolve(loc);
+          } else { resolve(null); }
+        } catch (e) { resolve(null); }
+      });
+    }).on('error', () => resolve(null)).on('timeout', () => resolve(null));
+  });
+}
 
 const DASHBOARD_HTML = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -192,7 +226,7 @@ http.createServer((req, res) => {
   if (p.pathname === '/drone' && req.method === 'POST') {
     let b = '';
     req.on('data', c => b += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const j = JSON.parse(b);
         const id = j._id || j.id || 'A001';
@@ -209,6 +243,19 @@ http.createServer((req, res) => {
         if (merged.tankLiters != null) merged.tankLiters = Math.round(merged.tankLiters * 100) / 100;
         if (merged.flowRate != null) merged.flowRate = Math.round(merged.flowRate * 10) / 10;
         if (merged.hectaresApplied != null) merged.hectaresApplied = Math.round(merged.hectaresApplied * 100) / 100;
+
+        // Geolocalizacao por IP se nao veio do APK
+        if (merged.latitude == null || merged.longitude == null) {
+          const clientIp = getClientIp(req);
+          const loc = await fetchIpLocation(clientIp);
+          if (loc) {
+            merged.latitude = loc.lat;
+            merged.longitude = loc.lon;
+            merged._geoCity = loc.city;
+            merged._geoRegion = loc.region;
+          }
+        }
+
         drones.set(id, { data: merged, time: Date.now() });
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({ ok: true, id }));
@@ -233,12 +280,13 @@ http.createServer((req, res) => {
   if (p.pathname === '/health' || p.pathname === '/ping') {
     const now = Date.now();
     const droneList = Array.from(drones.entries()).map(([id, d]) => ({
-      id, online: now - d.time < OFFLINE_THRESHOLD_MS, lastSeen: d.time
+      id, online: now - d.time < OFFLINE_THRESHOLD_MS, lastSeen: d.time,
+      lat: d.data.latitude, lon: d.data.longitude, city: d.data._geoCity
     }));
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({ status: 'ok', version: '2.3.1', drones: droneList }));
+    res.end(JSON.stringify({ status: 'ok', version: '2.3.4', drones: droneList }));
     return;
   }
 
   res.writeHead(404); res.end('Not found');
-}).listen(PORT, () => console.log('[AGRYON] v2.3.1 — Porta', PORT));
+}).listen(PORT, () => console.log('[AGRYON] v2.3.4 — Porta', PORT));
