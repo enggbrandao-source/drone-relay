@@ -279,13 +279,16 @@ http.createServer((req, res) => {
           const mappedKey = FIELD_MAP[key] || key;
           if (mappedKey) merged[mappedKey] = value;
         }
+        // Preserva latitude/longitude se vieram do APK
+        if (j.latitude != null) merged.latitude = j.latitude;
+        if (j.longitude != null) merged.longitude = j.longitude;
         if (merged.speedKmh != null) merged.speedKmh = Math.round(merged.speedKmh * 10) / 10;
         if (merged.altitude != null) merged.altitude = Math.round(merged.altitude * 10) / 10;
         if (merged.tankLiters != null) merged.tankLiters = Math.round(merged.tankLiters * 100) / 100;
         if (merged.flowRate != null) merged.flowRate = Math.round(merged.flowRate * 10) / 10;
         if (merged.hectaresApplied != null) merged.hectaresApplied = Math.round(merged.hectaresApplied * 100) / 100;
 
-        // Geolocalizacao por IP se nao veio do APK
+        // Geolocalizacao por IP SO SE nao veio do APK
         if (merged.latitude == null || merged.longitude == null) {
           const clientIp = getClientIp(req);
           console.log('[GEO] Drone', id, 'IP detectado:', clientIp);
@@ -300,7 +303,7 @@ http.createServer((req, res) => {
             console.log('[GEO] Drone', id, 'falha ao localizar IP:', clientIp);
           }
         } else {
-          console.log('[GEO] Drone', id, 'ja tem coords:', merged.latitude, merged.longitude);
+          console.log('[GEO] Drone', id, 'usando coords do APK:', merged.latitude, merged.longitude);
         }
 
         drones.set(id, { data: merged, time: Date.now() });
@@ -331,9 +334,9 @@ http.createServer((req, res) => {
       lat: d.data.latitude, lon: d.data.longitude, city: d.data._geoCity
     }));
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({ status: 'ok', version: '2.3.5', drones: droneList }));
+    res.end(JSON.stringify({ status: 'ok', version: '2.3.8', drones: droneList }));
     return;
   }
 
   res.writeHead(404); res.end('Not found');
-}).listen(PORT, () => console.log('[AGRYON] v2.3.5 — Porta', PORT));
+}).listen(PORT, () => console.log('[AGRYON] v2.3.8 — Porta', PORT));
