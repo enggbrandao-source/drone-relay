@@ -43,8 +43,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnDiagnostics: Button
     private lateinit var btnOperatorMode: Button
     private lateinit var btnQuickExportLogs: Button
+    private lateinit var btnGetLocation: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvGatewayInfo: TextView
+    private lateinit var tvGpsStatus: TextView
+    private lateinit var gpsIndicator: android.view.View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,8 +104,11 @@ class MainActivity : AppCompatActivity() {
         btnDiagnostics = findViewById(R.id.btnDiagnostics)
         btnOperatorMode = findViewById(R.id.btnOperatorMode)
         btnQuickExportLogs = findViewById(R.id.btnQuickExportLogs)
+        btnGetLocation = findViewById(R.id.btnGetLocation)
         tvStatus = findViewById(R.id.tvStatus)
         tvGatewayInfo = findViewById(R.id.tvGatewayInfo)
+        tvGpsStatus = findViewById(R.id.tvGpsStatus)
+        gpsIndicator = findViewById(R.id.gpsIndicator)
     }
 
     private fun displayGatewayInfo() {
@@ -168,6 +174,10 @@ class MainActivity : AppCompatActivity() {
 
         btnOperatorMode?.setOnClickListener {
             OperatorModeActivity.launch(this)
+        }
+
+        btnGetLocation.setOnClickListener {
+            fetchCurrentLocation()
         }
 
         btnQuickExportLogs.setOnClickListener {
@@ -257,9 +267,153 @@ class MainActivity : AppCompatActivity() {
         tvStatus.text = "Status: $msg"
     }
 
+    /**
+     * Atualiza o indicador visual do GPS.
+     * Estados:
+     * - GRAY (cinza): aguardando / sem tentativa
+     * - YELLOW (amarelo): buscando / aguardando fix
+     * - GREEN (verde): GPS ativo com coordenadas
+     * - RED (vermelho): GPS indisponivel / sem sinal
+     */
+    private fun updateGpsIndicator(state: GpsState, message: String = "") {
+        runOnUiThread {
+            when (state) {
+                GpsState.IDLE -> {
+                    gpsIndicator.setBackgroundResource(R.drawable.circle_gray)
+                    tvGpsStatus.text = if (message.isNotEmpty()) message else "GPS: aguardando..."
+                    tvGpsStatus.setTextColor(android.graphics.Color.parseColor("#666666"))
+                }
+                GpsState.SEARCHING -> {
+                    gpsIndicator.setBackgroundResource(R.drawable.circle_yellow)
+                    tvGpsStatus.text = if (message.isNotEmpty()) message else "GPS: buscando sinal..."
+                    tvGpsStatus.setTextColor(android.graphics.Color.parseColor("#FFCC00"))
+                }
+                GpsState.ACTIVE -> {
+                    gpsIndicator.setBackgroundResource(R.drawable.circle_green)
+                    tvGpsStatus.text = if (message.isNotEmpty()) message else "GPS: ativo"
+                    tvGpsStatus.setTextColor(android.graphics.Color.parseColor("#00FF88"))
+                }
+                GpsState.UNAVAILABLE -> {
+                    gpsIndicator.setBackgroundResource(R.drawable.circle_red)
+                    tvGpsStatus.text = if (message.isNotEmpty()) message else "GPS: indisponivel"
+                    tvGpsStatus.setTextColor(android.graphics.Color.parseColor("#FF6B2C"))
+                }
+            }
+        }
+    }
+
+    enum class GpsState { IDLE, SEARCHING, ACTIVE, UNAVAILABLE }
+
     private fun requestLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1001)
+        }
+    }
+
+    /**
+     * Tenta obter a localizacao atual do GPS do RC Plus e preenche o campo.
+     * Prioriza GPS_PROVIDER, mas aceita qualquer provider disponivel.
+     */
+    private fun fetchCurrentLocation() {
+        try {
+            val locationManager = getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+            if (locationManager == null) {
+                updateGpsIndicator(GpsState.UNAVAILABLE, "GPS: servico indisponivel")
+                Toast.makeText(this, "Servico de localizacao indisponivel", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // Verifica permissao
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1002)
+                return
+            }
+
+            updateGpsIndicator(GpsState.SEARCHING, "GPS: buscando...")
+            updateStatus("Buscando GPS...")
+            btnGetLocation.isEnabled = false
+            btnGetLocation.text = "Buscando..."
+
+            // Tenta obter lastKnownLocation imediatamente
+            var bestLocation: android.location.Location? = null
+            for (provider in locationManager.getProviders(true)) {
+                try {
+                    val loc = locationManager.getLastKnownLocation(provider)
+                    if (loc != null && (bestLocation == null || loc.accuracy < bestLocation.accuracy)) {
+                        bestLocation = loc
+                    }
+                } catch (_: SecurityException) {}
+            }
+
+            if (bestLocation != null) {
+                val lat = bestLocation.latitude
+                val lon = bestLocation.longitude
+                etLocation.setText("${String.format("%.6f", lat)}, ${String.format("%.6f", lon)}")
+                saveConfig()
+                updateGpsIndicator(GpsState.ACTIVE, "GPS: ${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}")
+                updateStatus("Localizacao obtida: ${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}")
+                Toast.makeText(this, "Localizacao capturada!", Toast.LENGTH_SHORT).show()
+                FileLogger.i("MainActivity", "Localizacao manual obtida: $lat,$lon (provider=${bestLocation.provider}, acc=${bestLocation.accuracy}m)")
+            } else {
+                // Se nao tem lastKnown, registra um listener temporario
+                val listener = object : android.location.LocationListener {
+                    override fun onLocationChanged(location: android.location.Location) {
+                        val lat = location.latitude
+                        val lon = location.longitude
+                        etLocation.setText("${String.format("%.6f", lat)}, ${String.format("%.6f", lon)}")
+                        saveConfig()
+                        updateGpsIndicator(GpsState.ACTIVE, "GPS: ${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}")
+                        updateStatus("Localizacao obtida: ${String.format("%.4f", lat)}, ${String.format("%.4f", lon)}")
+                        Toast.makeText(this@MainActivity, "Localizacao capturada!", Toast.LENGTH_SHORT).show()
+                        FileLogger.i("MainActivity", "Localizacao via listener: $lat,$lon")
+                        locationManager.removeUpdates(this)
+                        btnGetLocation.isEnabled = true
+                        btnGetLocation.text = "📍 USAR MINHA LOCALIZACAO"
+                    }
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {
+                        updateGpsIndicator(GpsState.UNAVAILABLE, "GPS: desabilitado")
+                        Toast.makeText(this@MainActivity, "GPS desabilitado", Toast.LENGTH_SHORT).show()
+                        btnGetLocation.isEnabled = true
+                        btnGetLocation.text = "📍 USAR MINHA LOCALIZACAO"
+                    }
+                }
+
+                // Tenta GPS_PROVIDER primeiro
+                try {
+                    locationManager.requestLocationUpdates(
+                        android.location.LocationManager.GPS_PROVIDER,
+                        0L, 0f, listener, android.os.Looper.getMainLooper()
+                    )
+                    // Timeout de 10 segundos
+                    Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        locationManager.removeUpdates(listener)
+                        if (etLocation.text.isNullOrEmpty()) {
+                            updateGpsIndicator(GpsState.UNAVAILABLE, "GPS: sem sinal")
+                            Toast.makeText(this, "GPS sem sinal. Digite manualmente ou va para area aberta.", Toast.LENGTH_LONG).show()
+                            updateStatus("GPS sem sinal - digite manualmente")
+                        }
+                        btnGetLocation.isEnabled = true
+                        btnGetLocation.text = "📍 USAR MINHA LOCALIZACAO"
+                    }, 10000)
+                } catch (e: Exception) {
+                    updateGpsIndicator(GpsState.UNAVAILABLE, "GPS: erro de acesso")
+                    Toast.makeText(this, "Erro ao acessar GPS: ${e.message}", Toast.LENGTH_SHORT).show()
+                    btnGetLocation.isEnabled = true
+                    btnGetLocation.text = "📍 USAR MINHA LOCALIZACAO"
+                }
+                return
+            }
+
+            btnGetLocation.isEnabled = true
+            btnGetLocation.text = "📍 USAR MINHA LOCALIZACAO"
+
+        } catch (e: Exception) {
+            updateGpsIndicator(GpsState.UNAVAILABLE, "GPS: erro")
+            FileLogger.e("MainActivity", "Erro ao obter localizacao", e)
+            Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show()
+            btnGetLocation.isEnabled = true
+            btnGetLocation.text = "📍 USAR MINHA LOCALIZACAO"
         }
     }
 
@@ -272,6 +426,13 @@ class MainActivity : AppCompatActivity() {
             } else {
                 FileLogger.w("MainActivity", "Permissao de localizacao negada")
                 Toast.makeText(this, "Permissao de localizacao negada. O mapa nao funcionara.", Toast.LENGTH_LONG).show()
+            }
+        }
+        if (requestCode == 1002) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                fetchCurrentLocation()
+            } else {
+                Toast.makeText(this, "Permissao negada - digite a localizacao manualmente", Toast.LENGTH_LONG).show()
             }
         }
     }
