@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0A0A0A">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DIAGNOSTICO"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#00FF88"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Connection Status Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#141414"
+            android:padding="20dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STATUS DE CONEXAO"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvConnStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Desconectado"
+                android:textSize="18sp"
+                android:textColor="#FF6B2C"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvLatency"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Latencia: -- ms"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0" />
+
+        </LinearLayout>
+
+        <!-- Telemetry Stats Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#141414"
+            android:padding="20dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ESTATISTICAS"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvPacketsSent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pacotes enviados: 0"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvPacketsFailed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pacotes falhos: 0"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvBufferSize"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Buffer local: 0"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvLastPacket"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ultimo pacote: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0" />
+
+        </LinearLayout>
+
+        <!-- Performance Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#141414"
+            android:padding="20dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PERFORMANCE"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvMemory"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Memoria: -- MB"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvFps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="FPS: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvCpu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CPU: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvRuntime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Runtime: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0" />
+
+        </LinearLayout>
+
+        <!-- Field Metrics Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#141414"
+            android:padding="20dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="METRICAS DE CAMPO"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvAccLatency"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Acc Lat: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvOcrLatency"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OCR Lat: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvUpdateFreq"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Freq: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvPacketLoss"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pkt Loss: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvReconnectRate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reconnect: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvFalseExtraction"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="False Ext: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvOcrAccuracy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OCR Acc: --"
+                android:textSize="16sp"
+                android:textColor="#B0B0B0" />
+
+        </LinearLayout>
+
+        <!-- Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnExportLogs"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:text="EXPORTAR LOGS"
+                android:textSize="16sp"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnClearLogs"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:text="LIMPAR LOGS"
+                android:textSize="16sp"
+                android:backgroundTint="#333333"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnExportMetrics"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:text="EXPORTAR JSON"
+                android:textSize="16sp"
+                android:backgroundTint="#00FF88"
+                android:textColor="#000000"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnExportCsv"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_weight="1"
+                android:text="EXPORTAR CSV"
+                android:textSize="16sp"
+                android:backgroundTint="#FF6B2C"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

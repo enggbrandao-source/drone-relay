@@ -11,8 +11,8 @@ android {
         applicationId = "com.dronemonitor.collector"
         minSdk = 28
         targetSdk = 34
-        versionCode = 133
-        versionName = "1.3.3"
+        versionCode = 141
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

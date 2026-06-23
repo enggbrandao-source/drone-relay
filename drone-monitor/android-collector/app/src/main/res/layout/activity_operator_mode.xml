@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layoutOperatorRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0A0A0A"
+    android:padding="16dp">
+
+    <!-- Alert Banner -->
+    <TextView
+        android:id="@+id/tvOpAlertBanner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="#CC0000"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Top Row: Status + Controls -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvOpSprayStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="AGUARDANDO"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnToggleTheme"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@android:drawable/ic_menu_day"
+                android:background="#1A1A1A"
+                android:layout_marginEnd="8dp" />
+
+            <ImageButton
+                android:id="@+id/btnToggleSize"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@android:drawable/ic_menu_zoom"
+                android:background="#1A1A1A" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Telemetry Grid -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <!-- Left Column -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BATERIA"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpBattery"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TANQUE"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpTank"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="VELOCIDADE"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ALTITUDE"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpAltitude"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
+
+        <!-- Right Column -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AREA"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpHectares"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- ha"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TEMPO MISSAO"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpTimer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00:00"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="RTK"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpRtk"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SINAL"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textAllCaps="true" />
+
+            <TextView
+                android:id="@+id/tvOpSignal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Bottom: Quality Row + Emergency -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvOpGpsQuality"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="GPS: --"
+            android:textSize="16sp"
+            android:textColor="#B0B0B0" />
+
+        <TextView
+            android:id="@+id/tvOpConnQuality"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="CONEXAO: --"
+            android:textSize="16sp"
+            android:textColor="#B0B0B0"
+            android:gravity="end" />
+
+    </LinearLayout>
+
+    <!-- Emergency Stop -->
+    <Button
+        android:id="@+id/btnEmergencyStop"
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:text="PARADA DE EMERGENCIA"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#CC0000"
+        android:layout_marginTop="8dp" />
+
+</LinearLayout>

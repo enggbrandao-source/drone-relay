@@ -120,6 +120,41 @@ class HttpRelayManager(private val context: Context) {
 
                 // GPS do RC Plus
                 GpsLocationHelper.fill(context, data)
+                
+                // Fallback 1: coordenadas do proprio drone (DJI Agras) se exibidas na tela
+                if (!data.has("latitude") || !data.has("longitude")) {
+                    val telemetryLat = data.optDouble("latitude", Double.NaN)
+                    val telemetryLon = data.optDouble("longitude", Double.NaN)
+                    if (!telemetryLat.isNaN() && !telemetryLon.isNaN()) {
+                        FileLogger.i(TAG, "Usando coordenadas do DJI Agras: $telemetryLat,$telemetryLon")
+                    }
+                }
+                
+                // Fallback 2: localizacao manual digitada pelo piloto
+                if (!data.has("latitude") || !data.has("longitude")) {
+                    val prefs = context.getSharedPreferences("collector_prefs", Context.MODE_PRIVATE)
+                    val manualLoc = prefs.getString("manual_location", "") ?: ""
+                    if (manualLoc.isNotEmpty()) {
+                        // Tenta parse "lat,lon" ou usa geocoding simples para cidades conhecidas
+                        val coords = parseManualLocation(manualLoc)
+                        if (coords != null) {
+                            data.put("latitude", coords.first)
+                            data.put("longitude", coords.second)
+                            data.put("_locationSource", "manual")
+                            FileLogger.i(TAG, "Usando localizacao manual: ${coords.first},${coords.second}")
+                        }
+                    }
+                }
+                
+                // Log final das coordenadas
+                if (data.has("latitude") && data.has("longitude")) {
+                    val lat = data.optDouble("latitude", 0.0)
+                    val lon = data.optDouble("longitude", 0.0)
+                    val source = data.optString("_locationSource", "gps")
+                    FileLogger.i(TAG, "Coordenadas enviadas ($source): $lat,$lon")
+                } else {
+                    FileLogger.w(TAG, "GPS indisponivel - sem coordenadas de nenhuma fonte")
+                }
 
                 OutputStreamWriter(conn.outputStream).use { it.write(data.toString()) }
                 val code = conn.responseCode
@@ -139,5 +174,65 @@ class HttpRelayManager(private val context: Context) {
     companion object {
         const val TAG = "HttpRelayManager"
         const val DEFAULT_RELAY = "https://drone-cloud.onrender.com/drone"
+        
+        // Coordenadas aproximadas de cidades comuns (fallback manual)
+        private val KNOWN_LOCATIONS = mapOf(
+            "penápolis" to Pair(-21.4197, -50.0775),
+            "penapolis" to Pair(-21.4197, -50.0775),
+            "são paulo" to Pair(-23.5505, -46.6333),
+            "sao paulo" to Pair(-23.5505, -46.6333),
+            "campinas" to Pair(-22.9053, -47.0659),
+            "ribeirão preto" to Pair(-21.1775, -47.8103),
+            "ribeirao preto" to Pair(-21.1775, -47.8103),
+            "brasília" to Pair(-15.7975, -47.8919),
+            "brasilia" to Pair(-15.7975, -47.8919),
+            "curitiba" to Pair(-25.4290, -49.2671),
+            "porto alegre" to Pair(-30.0346, -51.2177),
+            "belo horizonte" to Pair(-19.9167, -43.9345),
+            "rio de janeiro" to Pair(-22.9068, -43.1729),
+            "salvador" to Pair(-12.9714, -38.5014),
+            "fortaleza" to Pair(-3.7327, -38.5270),
+            "recife" to Pair(-8.0476, -34.8770),
+            "goiânia" to Pair(-16.6869, -49.2648),
+            "goiania" to Pair(-16.6869, -49.2648),
+            "manaus" to Pair(-3.1190, -60.0217),
+            "belém" to Pair(-1.4558, -48.4902),
+            "belem" to Pair(-1.4558, -48.4902),
+            "vitória" to Pair(-20.3155, -40.3128),
+            "vitoria" to Pair(-20.3155, -40.3128),
+            "florianópolis" to Pair(-27.5954, -48.5480),
+            "florianopolis" to Pair(-27.5954, -48.5480)
+        )
+        
+        /**
+         * Tenta extrair coordenadas de uma string manual.
+         * Formatos aceitos:
+         * - "-21.4197, -50.0775" (lat,lon)
+         * - "Penápolis, SP" (cidade conhecida)
+         * - "penapolis" (cidade conhecida, sem acento)
+         */
+        fun parseManualLocation(input: String): Pair<Double, Double>? {
+            val trimmed = input.trim().lowercase()
+            
+            // Tenta parse "lat,lon"
+            val coordRegex = Regex("""(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)""")
+            val match = coordRegex.find(trimmed)
+            if (match != null) {
+                val lat = match.groupValues[1].toDoubleOrNull()
+                val lon = match.groupValues[2].toDoubleOrNull()
+                if (lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    return Pair(lat, lon)
+                }
+            }
+            
+            // Tenta match em cidades conhecidas
+            for ((city, coords) in KNOWN_LOCATIONS) {
+                if (trimmed.contains(city)) {
+                    return coords
+                }
+            }
+            
+            return null
+        }
     }
 }

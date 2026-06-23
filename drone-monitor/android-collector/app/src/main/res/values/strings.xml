@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">DroneCollector</string>
+    <string name="service_name">Drone Telemetry Collector</string>
+    <string name="service_description">Coleta telemetria do DJI SmartFarm em background</string>
+    <string name="accessibility_service_label">Drone Collector Accessibility</string>
+    <string name="accessibility_service_class">com.dronemonitor.collector.service.DroneAccessibilityService</string>
+    <string name="accessibility_service_description">Servico necessario para capturar dados de voo exibidos na tela do DJI SmartFarm. Nao interfere nos controles do drone.</string>
+    <string name="floating_service_label">Controle Flutuante</string>
+
+    <!-- Diagnostics / Settings -->
+    <string name="diagnostics_title">Diagnostico de Conexao</string>
+    <string name="debug_mode">Modo Debug</string>
+    <string name="export_logs">Exportar Logs</string>
+    <string name="clear_logs">Limpar Logs</string>
+    <string name="connection_status">Status Conexao</string>
+    <string name="latency">Latencia</string>
+    <string name="buffer_size">Buffer Local</string>
+    <string name="packets_sent">Pacotes Enviados</string>
+    <string name="packets_failed">Pacotes Falhos</string>
+    <string name="memory_usage">Memoria</string>
+    <string name="fps">FPS Coleta</string>
+    <string name="last_packet">Ultimo Pacote</string>
+</resources>

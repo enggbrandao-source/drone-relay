@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0A0A0A"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <!-- Left Panel: Status + Controls -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Drone Collector RC Plus"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#00FF88"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Código do Drone"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etDroneCode"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="AGRAS001"
+                android:inputType="text"
+                android:textSize="14sp"
+                android:padding="10dp"
+                android:background="#1A1A1A"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nome do Piloto"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etPilotName"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="João Silva"
+                android:inputType="textPersonName"
+                android:textSize="14sp"
+                android:padding="10dp"
+                android:background="#1A1A1A"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Fazenda"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etFarmName"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Fazenda São João"
+                android:inputType="text"
+                android:textSize="14sp"
+                android:padding="10dp"
+                android:background="#1A1A1A"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Localização (cidade ou lat,lon)"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etLocation"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="Penápolis, SP"
+                android:inputType="text"
+                android:textSize="14sp"
+                android:padding="10dp"
+                android:background="#1A1A1A"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="URL do Servidor (modo cliente, opcional)"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etServerUrl"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:hint="ws://192.168.1.100:8080/ws"
+                android:inputType="textUri"
+                android:textSize="14sp"
+                android:padding="10dp"
+                android:background="#1A1A1A"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#555555"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvGatewayInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Gateway: ws://0.0.0.0:8080/ws"
+                android:textSize="13sp"
+                android:textColor="#00CCFF"
+                android:background="#0D1F1F"
+                android:padding="10dp"
+                android:layout_marginBottom="12dp" />
+
+            <Button
+                android:id="@+id/btnStart"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="INICIAR MONITORAMENTO"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:backgroundTint="#00FF88"
+                android:layout_marginBottom="6dp" />
+
+            <Button
+                android:id="@+id/btnStop"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="PARAR MONITORAMENTO"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#FF6B2C"
+                android:layout_marginBottom="12dp" />
+
+            <!-- Linha de botoes secundarios -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+
+                <Button
+                    android:id="@+id/btnDiagnostics"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:text="DIAGNOSTICO"
+                    android:textSize="13sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#333333"
+                    android:layout_marginEnd="4dp" />
+
+                <Button
+                    android:id="@+id/btnOperatorMode"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:text="OPERADOR"
+                    android:textSize="13sp"
+                    android:textColor="#000000"
+                    android:backgroundTint="#00CCFF"
+                    android:layout_marginStart="4dp" />
+
+            </LinearLayout>
+
+            <!-- Botao de exportar logs sempre visivel -->
+            <Button
+                android:id="@+id/btnQuickExportLogs"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="EXPORTAR LOGS (DIAGNOSTICO RAPIDO)"
+                android:textSize="13sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#FF6B2C"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Status: Aguardando..."
+                android:textSize="13sp"
+                android:textColor="#00FF88"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+        <!-- Right Panel: Quick Stats -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="16dp"
+            android:padding="14dp"
+            android:background="#141414">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TELEMETRIA"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Velocidade: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvAltitude"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Altitude: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvBattery"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Bateria: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvTank"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tanque: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvRtk"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="RTK: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvSignal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sinal: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvArea"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Area: --"
+                android:textSize="13sp"
+                android:textColor="#B0B0B0" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
