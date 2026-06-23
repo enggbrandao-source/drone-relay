@@ -175,16 +175,45 @@ const MAP_HTML = `<!DOCTYPE html>
 .leaflet-popup-tip{background:#111}
 .overlay{position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(11,15,25,0.95);padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:12px;color:#9aa0a6;z-index:1000}
 .overlay a{color:#00FF88;text-decoration:none;margin-left:8px}
+.legend{position:fixed;bottom:8px;right:8px;background:rgba(11,15,25,0.95);padding:8px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:11px;color:#9aa0a6;z-index:1000}
+.legend-item{display:flex;align-items:center;gap:6px;margin:2px 0}
+.legend-color{width:12px;height:12px;border-radius:2px}
 </style>
 </head>
 <body>
 <div class="overlay">AGRYON GPS <a href="/dashboard.html">Voltar</a></div>
 <div id="map"></div>
+<div class="legend">
+  <div class="legend-item"><div class="legend-color" style="background:#00FF88"></div>Drone Online</div>
+  <div class="legend-item"><div class="legend-color" style="background:#FF6B2C"></div>Drone Offline</div>
+  <div class="legend-item"><div class="legend-color" style="background:rgba(0,255,136,0.15);border:1px solid #00FF88"></div>Area de trabalho</div>
+</div>
 <script>
 const map=L.map('map').setView([-14.2,-51.9],4);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OpenStreetMap'}).addTo(map);
-let markers={}, viewSet=false;
+let markers={}, workAreas={}, viewSet=false;
 function fmt(v,r){if(v==null)return'--';if(typeof v==='number')return v.toFixed(r);return v}
+
+// Cria um poligono de area de trabalho simulado ao redor do drone
+function createWorkArea(lat, lon, hectares) {
+  if (!lat || !lon) return null;
+  // Aproximacao: 1 hectare = 100x100m
+  const size = hectares ? Math.sqrt(hectares) * 0.00045 : 0.0009; // graus aprox
+  const bounds = [
+    [lat - size, lon - size],
+    [lat - size, lon + size],
+    [lat + size, lon + size],
+    [lat + size, lon - size]
+  ];
+  return L.polygon(bounds, {
+    color: '#00FF88',
+    fillColor: '#00FF88',
+    fillOpacity: 0.1,
+    weight: 1,
+    dashArray: '5, 5'
+  });
+}
+
 async function refresh(){
   try{
     const r=await fetch('/dash-all',{cache:'no-store'});const data=await r.json();
@@ -197,7 +226,7 @@ async function refresh(){
       const online=hasCoords && d.offline!==true;
       if(hasCoords&&!firstValid)firstValid={lat,lon};
       const color=online?'#00FF88':'#FF6B2C';
-      const popup='<div style="min-width:160px">'+
+      const popup='<div style="min-width:180px">'+
         '<div style="font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px">'+id+'</div>'+
         '<div style="font-size:11px;color:#aaa">'+(online?'<span style="color:#00FF88">● ONLINE</span>':'<span style="color:#FF6B2C">● OFFLINE</span>')+'</div>'+
         '<hr style="border:0;border-top:1px solid #333;margin:6px 0">'+
@@ -210,7 +239,9 @@ async function refresh(){
         '<div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div>'+
         '<div>Sats: <b>'+(d.signalStrength||'-')+'</b></div>'+
         '<div>Status: <b>'+(d.operationalStatus||'-')+'</b></div>'+
+        '<div>RTK: <b>'+(d.rtkStatus||'-')+'</b></div>'+
         '</div></div>';
+      
       if(markers[id]){
         markers[id].marker.setLatLng([lat||-14.2,lon||-51.9]).setPopupContent(popup);
         if(markers[id].circle)markers[id].circle.setLatLng([lat||-14.2,lon||-51.9]);
@@ -219,9 +250,27 @@ async function refresh(){
         const c=L.circleMarker([lat||-14.2,lon||-51.9],{radius:8,fillColor:color,color:color,weight:2,fillOpacity:0.6}).addTo(map);
         markers[id]={marker:m,circle:c};
       }
+      
+      // Atualiza cor do circulo
+      if(markers[id].circle){
+        markers[id].circle.setStyle({fillColor:color,color:color});
+      }
+      
+      // Area de trabalho (simulada ao redor do drone)
+      if(online && d.hectaresApplied > 0) {
+        if(workAreas[id]) {
+          map.removeLayer(workAreas[id]);
+        }
+        const area = createWorkArea(lat, lon, d.hectaresApplied);
+        if(area) {
+          area.addTo(map);
+          workAreas[id] = area;
+        }
+      }
     }
     for(const id in markers){if(!data[id]){map.removeLayer(markers[id].marker);if(markers[id].circle)map.removeLayer(markers[id].circle);delete markers[id];}}
-    if(firstValid&&!viewSet){map.setView([firstValid.lat,firstValid.lon],13);viewSet=true;}
+    for(const id in workAreas){if(!data[id] || data[id].offline){map.removeLayer(workAreas[id]);delete workAreas[id];}}
+    if(firstValid&&!viewSet){map.setView([firstValid.lat,firstValid.lon],15);viewSet=true;}
   }catch(e){console.error(e)}
 }
 refresh();setInterval(refresh,5000);
@@ -334,9 +383,9 @@ http.createServer((req, res) => {
       lat: d.data.latitude, lon: d.data.longitude, city: d.data._geoCity
     }));
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({ status: 'ok', version: '2.3.8', drones: droneList }));
+    res.end(JSON.stringify({ status: 'ok', version: '2.3.9', drones: droneList }));
     return;
   }
 
   res.writeHead(404); res.end('Not found');
-}).listen(PORT, () => console.log('[AGRYON] v2.3.8 — Porta', PORT));
+}).listen(PORT, () => console.log('[AGRYON] v2.3.9 — Porta', PORT));
