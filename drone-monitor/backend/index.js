@@ -1,10 +1,38 @@
 const http = require('http');
 const url = require('url');
 const https = require('https');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const PORT = process.env.PORT || 8080;
+const JWT_SECRET = process.env.JWT_SECRET || 'agryon-default-secret';
 const drones = new Map();
 const OFFLINE_THRESHOLD_MS = 120000;
+
+// Banco em memória para autenticação
+const db = {
+  users: [],
+  companies: [],
+  drones: [],
+  farms: []
+};
+
+// Seede inicial
+async function seed() {
+  const company = { id: '1', name: 'AgroDrone Demo', plan: 'pro', active: true, createdAt: new Date() };
+  db.companies.push(company);
+  
+  const adminPass = await bcrypt.hash('admin123', 10);
+  db.users.push({ id: '1', email: 'admin@agryon.com', password: adminPass, name: 'Administrador', role: 'admin', companyId: '1', createdAt: new Date() });
+  
+  const clientPass = await bcrypt.hash('cliente123', 10);
+  db.users.push({ id: '2', email: 'cliente@demo.com', password: clientPass, name: 'Cliente Demo', role: 'cliente', companyId: '1', createdAt: new Date() });
+  
+  db.farms.push({ id: '1', name: 'Fazenda São João', location: 'Ribeirão Preto - SP', companyId: '1', createdAt: new Date() });
+  db.farms.push({ id: '2', name: 'Fazenda Boa Vista', location: 'Sertãozinho - SP', companyId: '1', createdAt: new Date() });
+  
+  console.log('[SEED] Dados iniciais criados');
+}
 
 const FIELD_MAP = {
   sp: 'speed', alt: 'altitude', bat: 'batteryPercent',
@@ -13,7 +41,7 @@ const FIELD_MAP = {
   rtk: 'rtkStatus', st: 'operationalStatus'
 };
 
-// Cache de geolocalizacao por IP (evita consultar API toda hora)
+// Cache de geolocalizacao por IP
 const ipGeoCache = new Map();
 
 function getClientIp(req) {
@@ -29,48 +57,47 @@ function getClientIp(req) {
 
 function fetchIpLocation(ip) {
   return new Promise((resolve) => {
-    console.log('[GEO] Consultando IP:', ip);
     if (!ip || ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
-      console.log('[GEO] IP ignorado (local/privado):', ip);
       resolve(null); return;
     }
-    if (ipGeoCache.has(ip)) { 
-      console.log('[GEO] Cache hit:', ip);
-      resolve(ipGeoCache.get(ip)); return; 
-    }
-    
-    // Tenta ipinfo.io (mais confiavel)
+    if (ipGeoCache.has(ip)) { resolve(ipGeoCache.get(ip)); return; }
     const apiUrl = `https://ipinfo.io/${ip}/json`;
-    console.log('[GEO] Chamando API:', apiUrl);
     https.get(apiUrl, { timeout: 8000 }, (apiRes) => {
       let data = '';
       apiRes.on('data', chunk => data += chunk);
       apiRes.on('end', () => {
         try {
-          console.log('[GEO] Resposta API:', data.substring(0, 200));
           const j = JSON.parse(data);
           if (j.loc) {
             const [lat, lon] = j.loc.split(',').map(Number);
             const loc = { lat, lon, city: j.city, region: j.region };
             ipGeoCache.set(ip, loc);
-            console.log('[GEO] Sucesso:', loc);
             resolve(loc);
-          } else { 
-            console.log('[GEO] API sem coordenadas:', j);
-            resolve(null); 
-          }
-        } catch (e) { 
-          console.log('[GEO] Erro parse:', e.message);
-          resolve(null); 
-        }
+          } else { resolve(null); }
+        } catch (e) { resolve(null); }
       });
-    }).on('error', (e) => {
-      console.log('[GEO] Erro request:', e.message);
-      resolve(null);
-    }).on('timeout', () => {
-      console.log('[GEO] Timeout');
-      resolve(null);
-    });
+    }).on('error', () => resolve(null)).on('timeout', () => resolve(null));
+  });
+}
+
+// Middleware de autenticação
+function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) { res.writeHead(401); res.end(JSON.stringify({ error: 'Token não fornecido' })); return; }
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    res.writeHead(401); res.end(JSON.stringify({ error: 'Token inválido' }));
+  }
+}
+
+// Helper para parse JSON body
+function parseBody(req, callback) {
+  let b = '';
+  req.on('data', c => b += c);
+  req.on('end', () => {
+    try { callback(JSON.parse(b)); } catch (e) { callback(null); }
   });
 }
 
@@ -294,6 +321,109 @@ http.createServer((req, res) => {
     res.writeHead(200, {'Content-Type': 'text/html'}); res.end(MAP_HTML); return;
   }
 
+  // === AUTH ===
+  if (p.pathname === '/auth/login' && req.method === 'POST') {
+    parseBody(req, async (body) => {
+      if (!body) { res.writeHead(400); res.end(JSON.stringify({ error: 'Body inválido' })); return; }
+      const { email, password } = body;
+      const user = db.users.find(u => u.email === email);
+      if (!user || !await bcrypt.compare(password, user.password)) {
+        res.writeHead(401); res.end(JSON.stringify({ error: 'Credenciais inválidas' })); return;
+      }
+      const token = jwt.sign({ id: user.id, email, role: user.role, companyId: user.companyId }, JWT_SECRET);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ token, user: { id: user.id, name: user.name, email, role: user.role, companyId: user.companyId } }));
+    });
+    return;
+  }
+
+  if (p.pathname === '/auth/register' && req.method === 'POST') {
+    parseBody(req, async (body) => {
+      if (!body) { res.writeHead(400); res.end(JSON.stringify({ error: 'Body inválido' })); return; }
+      const { email, password, name, companyName } = body;
+      const hashed = await bcrypt.hash(password, 10);
+      const company = { id: String(db.companies.length + 1), name: companyName || name + ' Ltda', plan: 'free', active: true, createdAt: new Date() };
+      db.companies.push(company);
+      const user = { id: String(db.users.length + 1), email, password: hashed, name, role: 'cliente', companyId: company.id, createdAt: new Date() };
+      db.users.push(user);
+      const token = jwt.sign({ id: user.id, email, role: user.role, companyId: company.id }, JWT_SECRET);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ token, user: { id: user.id, name, email, role: user.role, companyId: company.id } }));
+    });
+    return;
+  }
+
+  // === API PROTEGIDA - DRONES ===
+  if (p.pathname === '/api/drones' && req.method === 'GET') {
+    authMiddleware(req, res, () => {
+      const where = req.user.role === 'admin' ? {} : { companyId: req.user.companyId };
+      const drones = db.drones.filter(d => !where.companyId || d.companyId === where.companyId);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(drones.map(d => ({
+        ...d,
+        pilot: db.users.find(u => u.id === d.pilotId)?.name || null,
+        farm: db.farms.find(f => f.id === d.farmId)?.name || null
+      }))));
+    });
+    return;
+  }
+
+  if (p.pathname === '/api/drones' && req.method === 'POST') {
+    authMiddleware(req, res, () => {
+      parseBody(req, (body) => {
+        const { code, model, pilotId, farmId } = body;
+        const companyId = req.user.role === 'admin' ? body.companyId : req.user.companyId;
+        const drone = { id: String(db.drones.length + 1), code, model, companyId, pilotId, farmId, active: true, createdAt: new Date(), lastData: null, lastSeen: null };
+        db.drones.push(drone);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify(drone));
+      });
+    });
+    return;
+  }
+
+  // === API PROTEGIDA - FARMS ===
+  if (p.pathname === '/api/farms' && req.method === 'GET') {
+    authMiddleware(req, res, () => {
+      const where = req.user.role === 'admin' ? {} : { companyId: req.user.companyId };
+      const farms = db.farms.filter(f => !where.companyId || f.companyId === where.companyId);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify(farms));
+    });
+    return;
+  }
+
+  if (p.pathname === '/api/farms' && req.method === 'POST') {
+    authMiddleware(req, res, () => {
+      parseBody(req, (body) => {
+        const { name, location } = body;
+        const companyId = req.user.role === 'admin' ? body.companyId : req.user.companyId;
+        const farm = { id: String(db.farms.length + 1), name, location, companyId, active: true, createdAt: new Date() };
+        db.farms.push(farm);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify(farm));
+      });
+    });
+    return;
+  }
+
+  // === API PROTEGIDA - USER PROFILE ===
+  if (p.pathname === '/api/me' && req.method === 'GET') {
+    authMiddleware(req, res, () => {
+      const user = db.users.find(u => u.id === req.user.id);
+      const company = db.companies.find(c => c.id === user.companyId);
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        company: company ? { id: company.id, name: company.name, plan: company.plan } : null
+      }));
+    });
+    return;
+  }
+
   // App (redireciona para dashboard por enquanto)
   if (p.pathname === '/app' || p.pathname === '/app/' || p.pathname === '/app/login') {
     res.writeHead(302, {'Location': '/dashboard.html'}); res.end(); return;
@@ -388,4 +518,7 @@ http.createServer((req, res) => {
   }
 
   res.writeHead(404); res.end('Not found');
-}).listen(PORT, () => console.log('[AGRYON] v2.3.9 — Porta', PORT));
+}).listen(PORT, async () => {
+  await seed();
+  console.log('[AGRYON] v2.4.0 — Auth JWT + API — Porta', PORT);
+});
