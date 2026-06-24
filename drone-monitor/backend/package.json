@@ -2,10 +2,10 @@
   "name": "agryon-control-api",
   "version": "2.4.0",
   "description": "API do Agryon Control — Plataforma multi-cliente de monitoramento de drones",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
+    "start": "node app.js",
+    "dev": "node app.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "node prisma/seed.js"
