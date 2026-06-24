@@ -504,7 +504,101 @@ http.createServer((req, res) => {
 
   // App autenticado
   if (p.pathname === '/app' || p.pathname === '/app/' || p.pathname === '/app/login') {
-    res.writeHead(200, {'Content-Type': 'text/html'}); res.end(APP_HTML); return;
+    const SIMPLE_APP_HTML = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agryon Control App</title>
+<style>
+*{margin:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0b0f19;color:#e5e7eb}
+.page{min-height:100vh;padding:24px}
+.login{max-width:420px;margin:70px auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:28px}
+.login h1{color:#34d399;text-align:center;margin-bottom:8px}.login p{color:#94a3b8;text-align:center;margin-bottom:18px}
+.login label{display:block;font-size:13px;color:#94a3b8;margin-bottom:6px}
+.login input{width:100%;padding:12px 14px;margin-bottom:14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#020617;color:#fff}
+.login button,.btn{background:#34d399;color:#052e16;border:none;border-radius:10px;padding:12px 14px;font-weight:700;cursor:pointer}
+.err{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);color:#fca5a5;padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:13px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.title{font-size:28px;font-weight:800;color:#34d399}
+.user{font-size:13px;color:#94a3b8}
+.logout{background:none;border:none;color:#f87171;cursor:pointer;margin-left:12px}
+.toolbar{display:flex;gap:8px;margin-bottom:16px}
+.toolbar button{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:#cbd5e1;cursor:pointer}
+.toolbar button.active{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.25);color:#34d399}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.drone{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.muted{color:#94a3b8}
+.status{font-size:11px;padding:4px 8px;border-radius:999px;font-weight:700}
+.online{background:rgba(52,211,153,.12);color:#34d399}.offline{background:rgba(248,113,113,.12);color:#f87171}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.mini>div{background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center}
+.mini .k{font-size:10px;color:#94a3b8;text-transform:uppercase}.mini .v{font-size:18px;font-weight:800;color:#fff}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div id="app" class="page"></div>
+<script>
+let token = localStorage.getItem('agryon_token');
+let user = JSON.parse(localStorage.getItem('agryon_user') || 'null');
+let filter = 'all';
+let drones = {};
+function esc(v){return String(v ?? '').replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
+function fmt(v,r){if(v==null||v==='')return '--';return typeof v==='number'?v.toFixed(r):esc(v);}
+async function doLogin(ev){
+  ev.preventDefault();
+  const err = document.getElementById('err');
+  err.classList.add('hidden');
+  try{
+    const res = await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Erro ao fazer login');
+    token = data.token; user = data.user;
+    localStorage.setItem('agryon_token', token);
+    localStorage.setItem('agryon_user', JSON.stringify(user));
+    render();
+    poll();
+  }catch(e){
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  }
+}
+function logout(){
+  token = null; user = null;
+  localStorage.removeItem('agryon_token');
+  localStorage.removeItem('agryon_user');
+  render();
+}
+function renderLogin(){
+  document.getElementById('app').innerHTML = '<div class="login"><h1>AGRYON</h1><p>Control — Monitoramento de Drones</p><div id="err" class="err hidden"></div><form onsubmit="doLogin(event)"><label>Email</label><input id="email" type="email" value="admin@agryon.com" placeholder="admin@agryon.com"><label>Senha</label><input id="password" type="password" value="admin123" placeholder="********"><button type="submit" style="width:100%">Entrar</button></form><p style="margin-top:14px;font-size:12px;color:#64748b;text-align:center">Demo: admin@agryon.com / admin123</p></div>';
+}
+function renderDashboard(){
+  const ids = Object.keys(drones).sort().filter(function(id){const d=drones[id]; const online=!d.offline; return filter==='all'||(filter==='online'&&online)||(filter==='offline'&&!online);});
+  document.getElementById('app').innerHTML =
+    '<div class="top"><div><div class="title">AGRYON CONTROL</div><div class="muted">Dashboard autenticado</div></div><div class="user">'+esc(user?.name || '')+' ('+esc(user?.email || '')+') <button class="logout" onclick="logout()">Sair</button></div></div>' +
+    '<div style="margin-bottom:12px"><a href="/map" class="btn" style="text-decoration:none;display:inline-block">Abrir mapa</a></div>' +
+    '<div class="toolbar"><button class="'+(filter==='all'?'active':'')+'" onclick="filter=\\'all\\';renderDashboard()">Todos</button><button class="'+(filter==='online'?'active':'')+'" onclick="filter=\\'online\\';renderDashboard()">Online</button><button class="'+(filter==='offline'?'active':'')+'" onclick="filter=\\'offline\\';renderDashboard()">Offline</button></div>' +
+    '<div class="grid">' +
+    ids.map(function(id){const d=drones[id];const online=!d.offline;return '<div class="drone"><div class="row"><div><div style="font-size:20px;font-weight:800">'+esc(id)+'</div><div class="muted" style="font-size:12px">Piloto: '+esc(d._pilot||'—')+' | Fazenda: '+esc(d._farm||'—')+'</div></div><div class="status '+(online?'online':'offline')+'">'+(online?'ONLINE':'OFFLINE')+'</div></div><div class="mini"><div><div class="k">Velocidade</div><div class="v">'+fmt(d.speedKmh,1)+'</div></div><div><div class="k">Altitude</div><div class="v">'+fmt(d.altitude,1)+'</div></div><div><div class="k">Bateria</div><div class="v">'+fmt(d.batteryPercent,0)+'</div></div><div><div class="k">Tanque</div><div class="v">'+fmt(d.tankLiters,2)+'</div></div><div><div class="k">Satélites</div><div class="v">'+fmt(d.signalStrength,0)+'</div></div><div><div class="k">Status</div><div class="v">'+fmt(d.operationalStatus,0)+'</div></div></div></div>';}).join('') +
+    '</div>';
+}
+async function poll(){
+  if(!token) return;
+  try{
+    const me = await fetch('/api/me',{headers:{Authorization:'Bearer '+token}});
+    if(!me.ok){ logout(); return; }
+    const dash = await fetch('/dash-all',{cache:'no-store'});
+    drones = await dash.json();
+    renderDashboard();
+  }catch(e){ console.error(e); }
+}
+function render(){ if(!token) renderLogin(); else renderDashboard(); }
+render(); if(token){ poll(); setInterval(poll,5000); }
+</script>
+</body></html>`;
+    res.writeHead(200, {'Content-Type': 'text/html'}); res.end(SIMPLE_APP_HTML); return;
   }
 
   // Debug - ver IP que chega
