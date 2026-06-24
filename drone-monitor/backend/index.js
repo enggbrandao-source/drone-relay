@@ -187,6 +187,83 @@ poll();setInterval(poll,3000);
 </script>
 </body></html>`;
 
+const APP_HTML = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agryon Control App</title>
+<style>
+*{margin:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0b0f19;color:#e5e7eb}
+.wrap{min-height:100vh;display:flex}
+.sidebar{width:250px;background:#0f172a;border-right:1px solid rgba(255,255,255,.08);padding:20px;display:flex;flex-direction:column}
+.brand{font-size:28px;font-weight:800;color:#34d399}.sub{font-size:12px;color:#64748b;margin-top:2px;margin-bottom:24px}
+.nav a{display:block;padding:12px 14px;border-radius:10px;color:#cbd5e1;text-decoration:none;margin-bottom:8px;border:1px solid transparent}
+.nav a.active,.nav a:hover{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.25);color:#34d399}
+.user{margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;font-size:13px;color:#94a3b8}
+.logout{margin-top:8px;background:none;border:none;color:#f87171;cursor:pointer;padding:0}
+.main{flex:1;padding:24px}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px}
+.login{max-width:420px;margin:70px auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:28px}
+.login h1{color:#34d399;text-align:center;margin-bottom:8px}.login p{color:#94a3b8;text-align:center;margin-bottom:18px}
+.login label{display:block;font-size:13px;color:#94a3b8;margin-bottom:6px}
+.login input{width:100%;padding:12px 14px;margin-bottom:14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#020617;color:#fff}
+.login button,.btn{background:#34d399;color:#052e16;border:none;border-radius:10px;padding:12px 14px;font-weight:700;cursor:pointer}
+.err{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);color:#fca5a5;padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:13px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.title{font-size:28px;font-weight:800}
+.muted{color:#94a3b8}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.drone{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
+.status{font-size:11px;padding:4px 8px;border-radius:999px;font-weight:700}
+.online{background:rgba(52,211,153,.12);color:#34d399}.offline{background:rgba(248,113,113,.12);color:#f87171}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.mini>div{background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center}
+.mini .k{font-size:10px;color:#94a3b8;text-transform:uppercase}.mini .v{font-size:18px;font-weight:800;color:#fff}
+.toolbar{display:flex;gap:8px}
+.toolbar button{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:#cbd5e1;cursor:pointer}
+.toolbar button.active{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.25);color:#34d399}
+.list{display:grid;gap:12px}
+.item{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px}
+.form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:14px}
+.form input{padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#020617;color:#fff}
+.hidden{display:none}
+@media (max-width: 900px){.wrap{display:block}.sidebar{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.08)}.main{padding:16px}.form{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const API = '';
+const state = { token: localStorage.getItem('agryon_token'), user: JSON.parse(localStorage.getItem('agryon_user') || 'null'), route: 'dashboard', dronesLive: {}, dronesApi: [], farms: [], filter: 'all' };
+function esc(v){return String(v ?? '').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function fmt(v,r=0){if(v==null||v==='')return '--';return typeof v==='number'?v.toFixed(r):esc(v)}
+function setRoute(r){state.route=r; render(); if(state.token) loadRouteData();}
+function saveAuth(token,user){state.token=token;state.user=user;localStorage.setItem('agryon_token',token);localStorage.setItem('agryon_user',JSON.stringify(user))}
+function logout(){state.token=null;state.user=null;localStorage.removeItem('agryon_token');localStorage.removeItem('agryon_user');render()}
+async function api(path, opts={}){const headers=Object.assign({'Content-Type':'application/json'}, opts.headers||{}); if(state.token) headers.Authorization='Bearer '+state.token; const res=await fetch(API+path,Object.assign({},opts,{headers})); const text=await res.text(); let data={}; try{data=text?JSON.parse(text):{}}catch{data={raw:text}} if(!res.ok) throw new Error(data.error||('HTTP '+res.status)); return data}
+async function doLogin(ev){ev.preventDefault(); const email=document.getElementById('email').value; const password=document.getElementById('password').value; const err=document.getElementById('err'); err.classList.add('hidden'); try{const data=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})}); saveAuth(data.token,data.user); render(); loadRouteData();}catch(e){err.textContent=e.message; err.classList.remove('hidden')}}
+async function loadRouteData(){ if(!state.token) return;
+  try{
+    if(state.route==='dashboard'){ state.dronesLive = await fetch('/dash-all',{cache:'no-store'}).then(r=>r.json()); renderContent(); }
+    if(state.route==='drones'){ state.dronesApi = await api('/api/drones'); renderContent(); }
+    if(state.route==='farms'){ state.farms = await api('/api/farms'); renderContent(); }
+    if(state.route==='mapa'){ renderContent(); }
+  }catch(e){ console.error(e); }
+}
+async function createDrone(ev){ev.preventDefault(); const code=document.getElementById('droneCode').value; const model=document.getElementById('droneModel').value; await api('/api/drones',{method:'POST',body:JSON.stringify({code,model})}); document.getElementById('droneCode').value=''; loadRouteData();}
+async function createFarm(ev){ev.preventDefault(); const name=document.getElementById('farmName').value; const location=document.getElementById('farmLocation').value; await api('/api/farms',{method:'POST',body:JSON.stringify({name,location})}); document.getElementById('farmName').value=''; document.getElementById('farmLocation').value=''; loadRouteData();}
+function dashboardView(){ const ids=Object.keys(state.dronesLive).sort().filter(id=>{const d=state.dronesLive[id]; const online=!d.offline; return state.filter==='all'||(state.filter==='online'&&online)||(state.filter==='offline'&&!online)}); return '<div class="row"><div><div class="title">Dashboard</div><div class="muted">Telemetria em tempo real</div></div><div class="toolbar"><button class="'+(state.filter==='all'?'active':'')+'" onclick="state.filter=\'all\';renderContent()">Todos</button><button class="'+(state.filter==='online'?'active':'')+'" onclick="state.filter=\'online\';renderContent()">Online</button><button class="'+(state.filter==='offline'?'active':'')+'" onclick="state.filter=\'offline\';renderContent()">Offline</button></div></div><div class="grid">'+ids.map(id=>{const d=state.dronesLive[id],online=!d.offline; return '<div class="drone"><div class="row"><div><div style="font-size:20px;font-weight:800">'+esc(id)+'</div><div class="muted" style="font-size:12px">Piloto: '+esc(d._pilot||'—')+' | Fazenda: '+esc(d._farm||'—')+'</div></div><div class="status '+(online?'online':'offline')+'">'+(online?'ONLINE':'OFFLINE')+'</div></div><div class="mini"><div><div class="k">Velocidade</div><div class="v">'+fmt(d.speedKmh,1)+'</div></div><div><div class="k">Altitude</div><div class="v">'+fmt(d.altitude,1)+'</div></div><div><div class="k">Bateria</div><div class="v">'+fmt(d.batteryPercent,0)+'</div></div><div><div class="k">Tanque</div><div class="v">'+fmt(d.tankLiters,2)+'</div></div><div><div class="k">Satélites</div><div class="v">'+fmt(d.signalStrength,0)+'</div></div><div><div class="k">Status</div><div class="v" style="font-size:15px">'+fmt(d.operationalStatus,0)+'</div></div></div></div>'}).join('')+'</div>'}
+function dronesView(){ return '<div class="row"><div><div class="title">Drones</div><div class="muted">Cadastro de aeronaves</div></div></div><form class="form" onsubmit="createDrone(event)"><input id="droneCode" placeholder="Código ex: AGRAS001" required><input id="droneModel" placeholder="Modelo" value="DJI Agras" required><button class="btn" type="submit">Salvar</button></form><div class="list">'+state.dronesApi.map(d=>'<div class="item"><div><div style="font-weight:800">'+esc(d.code)+'</div><div class="muted">'+esc(d.model||'—')+'</div></div><div class="muted">'+esc(d.farm||'Sem fazenda')+'</div></div>').join('')+'</div>'}
+function farmsView(){ return '<div class="row"><div><div class="title">Fazendas</div><div class="muted">Cadastro de propriedades</div></div></div><form class="form" onsubmit="createFarm(event)"><input id="farmName" placeholder="Nome da fazenda" required><input id="farmLocation" placeholder="Cidade / Estado"><button class="btn" type="submit">Salvar</button></form><div class="list">'+state.farms.map(f=>'<div class="item"><div><div style="font-weight:800">'+esc(f.name)+'</div><div class="muted">'+esc(f.location||'Sem localização')+'</div></div></div>').join('')+'</div>'}
+function mapaView(){ return '<div class="row"><div><div class="title">Mapa</div><div class="muted">Abrir mapa operacional</div></div><a class="btn" href="/map" target="_blank" rel="noreferrer" style="text-decoration:none;display:inline-block">Abrir mapa</a></div><div class="card"><p class="muted">O mapa operacional live está disponível em <strong>/map</strong> e usa os dados em tempo real do backend.</p></div>'}
+function renderContent(){ const root=document.getElementById('content'); if(!root) return; root.innerHTML = state.route==='dashboard'?dashboardView():state.route==='drones'?dronesView():state.route==='farms'?farmsView():mapaView(); }
+function render(){ const app=document.getElementById('app'); if(!state.token){ app.innerHTML='<div class="login"><h1>AGRYON</h1><p>Control — Monitoramento de Drones</p><div id="err" class="err hidden"></div><form onsubmit="doLogin(event)"><label>Email</label><input id="email" type="email" value="admin@agryon.com" placeholder="admin@agryon.com"><label>Senha</label><input id="password" type="password" value="admin123" placeholder="********"><button type="submit" style="width:100%">Entrar</button></form><p style="margin-top:14px;font-size:12px;color:#64748b;text-align:center">Demo: admin@agryon.com / admin123</p></div>'; return; }
+  app.innerHTML='<div class="wrap"><aside class="sidebar"><div class="brand">AGRYON</div><div class="sub">Control</div><nav class="nav"><a href="#" class="'+(state.route==='dashboard'?'active':'')+'" onclick="setRoute(\'dashboard\');return false;">Dashboard</a><a href="#" class="'+(state.route==='drones'?'active':'')+'" onclick="setRoute(\'drones\');return false;">Drones</a><a href="#" class="'+(state.route==='farms'?'active':'')+'" onclick="setRoute(\'farms\');return false;">Fazendas</a><a href="#" class="'+(state.route==='mapa'?'active':'')+'" onclick="setRoute(\'mapa\');return false;">Mapa</a></nav><div class="user"><div>'+(state.user?.name||'Usuário')+'</div><div>'+(state.user?.email||'')+'</div><button class="logout" onclick="logout()">Sair</button></div></aside><main class="main"><div id="content"></div></main></div>'; renderContent(); }
+render(); if(state.token){ loadRouteData(); setInterval(()=>{ if(state.route==='dashboard') loadRouteData(); }, 5000); }
+</script>
+</body></html>`;
+
 const MAP_HTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -425,9 +502,9 @@ http.createServer((req, res) => {
     return;
   }
 
-  // App (redireciona para dashboard por enquanto)
+  // App autenticado
   if (p.pathname === '/app' || p.pathname === '/app/' || p.pathname === '/app/login') {
-    res.writeHead(302, {'Location': '/dashboard.html'}); res.end(); return;
+    res.writeHead(200, {'Content-Type': 'text/html'}); res.end(APP_HTML); return;
   }
 
   // Debug - ver IP que chega
