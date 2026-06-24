@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt');
 
 const PORT = process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || 'agryon-default-secret';
+const APP_VERSION = require('./package.json').version;
 const drones = new Map();
 const OFFLINE_THRESHOLD_MS = 120000;
 
@@ -513,12 +514,12 @@ http.createServer((req, res) => {
       lat: d.data.latitude, lon: d.data.longitude, city: d.data._geoCity
     }));
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({ status: 'ok', version: '2.3.9', drones: droneList }));
+    res.end(JSON.stringify({ status: 'ok', version: APP_VERSION, drones: droneList }));
     return;
   }
 
   res.writeHead(404); res.end('Not found');
 }).listen(PORT, async () => {
   await seed();
-  console.log('[AGRYON] v2.4.0 — Auth JWT + API — Porta', PORT);
+  console.log(`[AGRYON] v${APP_VERSION} — Auth JWT + API — Porta`, PORT);
 });

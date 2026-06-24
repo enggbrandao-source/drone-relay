@@ -1,6 +1,6 @@
 {
   "name": "agryon-control-api",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "API do Agryon Control — Plataforma multi-cliente de monitoramento de drones",
   "main": "app.js",
   "scripts": {
