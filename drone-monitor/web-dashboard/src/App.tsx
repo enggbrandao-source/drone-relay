@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Drones from './pages/Drones';
 import Farms from './pages/Farms';
 import MapPage from './pages/MapPage';
+import Operations from './pages/Operations';
 import Layout from './components/Layout';
 
 const API_URL = 'https://drone-cloud.onrender.com';
@@ -21,7 +22,7 @@ function App() {
   }, [user]);
 
   if (!user) {
-    return <Login onLogin={setUser} />;
+    return <Login onLogin={setUser} apiUrl={API_URL} />;
   }
 
   return (
@@ -31,6 +32,7 @@ function App() {
         <Route path="/drones" element={<Drones apiUrl={API_URL} token={user.token} />} />
         <Route path="/farms" element={<Farms apiUrl={API_URL} token={user.token} />} />
         <Route path="/mapa" element={<MapPage apiUrl={API_URL} token={user.token} />} />
+        <Route path="/operations" element={<Operations apiUrl={API_URL} token={user.token} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>

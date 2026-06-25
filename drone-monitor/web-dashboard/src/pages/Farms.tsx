@@ -13,7 +13,7 @@ export default function Farms({ apiUrl, token }: Props) {
 
   async function loadFarms() {
     try {
-      const res = await fetch(`${apiUrl}/farms`, {
+      const res = await fetch(`${apiUrl}/api/farms`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -32,7 +32,7 @@ export default function Farms({ apiUrl, token }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const res = await fetch(`${apiUrl}/farms`, {
+      const res = await fetch(`${apiUrl}/api/farms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

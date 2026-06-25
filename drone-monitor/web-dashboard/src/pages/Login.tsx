@@ -2,11 +2,12 @@ import { useState } from 'react';
 
 interface Props {
   onLogin: (user: any) => void;
+  apiUrl: string;
 }
 
-export default function Login({ onLogin }: Props) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function Login({ onLogin, apiUrl }: Props) {
+  const [email, setEmail] = useState('admin@agryon.com');
+  const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +17,7 @@ export default function Login({ onLogin }: Props) {
     setError('');
     
     try {
-      const res = await fetch('https://drone-cloud.onrender.com/auth/login', {
+      const res = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })

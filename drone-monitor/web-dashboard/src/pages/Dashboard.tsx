@@ -23,29 +23,66 @@ function fmt(v: any, rnd: number) {
   return v;
 }
 
-export default function Dashboard({ apiUrl }: Props) {
+export default function Dashboard({ apiUrl, token }: Props) {
   const [drones, setDrones] = useState<Record<string, any>>({});
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDay, setSelectedDay] = useState<any | null>(null);
+  const [operationsLoading, setOperationsLoading] = useState(true);
 
   useEffect(() => {
     async function poll() {
       try {
-        const res = await fetch(`${apiUrl}/dash-all`, { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
+        const [dashRes, daysRes] = await Promise.all([
+          fetch(`${apiUrl}/dash-all`, { cache: 'no-store' }),
+          fetch(`${apiUrl}/operations`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+
+        if (dashRes.ok) {
+          const data = await dashRes.json();
           setDrones(data);
+        }
+        if (daysRes.ok) {
+          const operationsData = await daysRes.json();
+          const nextDays = operationsData.days || [];
+          setDays(nextDays);
+          setSelectedDate((current) => current || nextDays[0]?.date || '');
         }
       } catch (e) {
         console.error('Poll error:', e);
       } finally {
         setLoading(false);
+        setOperationsLoading(false);
       }
     }
     poll();
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
-  }, [apiUrl]);
+  }, [apiUrl, token]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setSelectedDay(null);
+      return;
+    }
+    async function loadDay() {
+      try {
+        const res = await fetch(`${apiUrl}/operations/${selectedDate}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          setSelectedDay(await res.json());
+        }
+      } catch (e) {
+        console.error('Operations error:', e);
+      }
+    }
+    loadDay();
+  }, [apiUrl, selectedDate, token]);
 
   const ids = Object.keys(drones).sort();
   const filtered = ids.filter(id => {
@@ -79,6 +116,118 @@ export default function Dashboard({ apiUrl }: Props) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold">Resumo Operacional</h3>
+          <div className="text-sm text-gray-500">
+            Fechamento automático após 30 minutos sem novo voo
+          </div>
+        </div>
+
+        {operationsLoading ? (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-gray-500">
+            Carregando resumo operacional...
+          </div>
+        ) : days.length === 0 ? (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-gray-500">
+            Ainda não há operações finalizadas ou em andamento registradas.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+              {days.map((day) => (
+                <button
+                  key={day.date}
+                  onClick={() => setSelectedDate(day.date)}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    selectedDate === day.date
+                      ? 'border-emerald-500/40 bg-emerald-500/10'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-lg font-bold">{day.dateLabel}</div>
+                    <div className="text-xs text-gray-400">{day.summary.operationsCount} operações</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-gray-500">Voos</div>
+                      <div className="font-semibold">{day.summary.totalFlights}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Tempo</div>
+                      <div className="font-semibold">{day.summary.totalOperationLabel}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Hectares</div>
+                      <div className="font-semibold">{fmt(day.summary.totalHectares, 2)} ha</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Última operação</div>
+                      <div className="font-semibold text-xs">{day.summary.lastOperationLabel || '—'}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {selectedDay && (
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-bold">{selectedDay.dateLabel}</h4>
+                    <div className="text-sm text-gray-400">
+                      {selectedDay.summary.operationsCount} operações | {selectedDay.summary.totalFlights} voos | {selectedDay.summary.totalOperationLabel} | {fmt(selectedDay.summary.totalHectares, 2)} ha
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {selectedDay.operations.map((operation: any, index: number) => (
+                    <div key={operation.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                        <div className="font-bold">
+                          Operação {index + 1} · {operation.droneCode}
+                        </div>
+                        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${operation.status === 'OPEN' ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                          {operation.status === 'OPEN' ? 'EM ANDAMENTO' : 'ENCERRADA'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3 xl:grid-cols-6">
+                        <div>
+                          <div className="text-gray-500">Início</div>
+                          <div>{new Date(operation.startedAt).toLocaleTimeString('pt-BR')}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Fim</div>
+                          <div>{operation.endedAt ? new Date(operation.endedAt).toLocaleTimeString('pt-BR') : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Duração</div>
+                          <div>{operation.durationLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Voos</div>
+                          <div>{operation.totalFlights}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Hectares</div>
+                          <div>{fmt(operation.hectaresWorked, 2)} ha</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Piloto / Fazenda</div>
+                          <div>{operation.pilotName || '—'} / {operation.farmName || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

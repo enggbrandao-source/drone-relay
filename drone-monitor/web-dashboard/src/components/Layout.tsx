@@ -9,9 +9,10 @@ interface Props {
 
 export default function Layout({ children, user, onLogout }: Props) {
   const location = useLocation();
-  
+
   const nav = [
     { path: '/', label: 'Dashboard', icon: '📊' },
+    { path: '/operations', label: 'Operações', icon: '🧾' },
     { path: '/drones', label: 'Drones', icon: '🚁' },
     { path: '/farms', label: 'Fazendas', icon: '🌾' },
     { path: '/mapa', label: 'Mapa', icon: '🗺️' },
@@ -19,15 +20,14 @@ export default function Layout({ children, user, onLogout }: Props) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Sidebar */}
       <aside className="w-64 bg-black/30 border-r border-white/10 flex flex-col">
         <div className="p-6 border-b border-white/10">
           <h1 className="text-2xl font-bold text-emerald-400">AGRYON</h1>
           <p className="text-xs text-gray-500 mt-1">Control</p>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-1">
-          {nav.map(item => (
+          {nav.map((item) => (
             <Link
               key={item.path}
               to={item.path}
@@ -42,7 +42,7 @@ export default function Layout({ children, user, onLogout }: Props) {
             </Link>
           ))}
         </nav>
-        
+
         <div className="p-4 border-t border-white/10">
           <div className="text-sm text-gray-400 mb-2">{user.user?.name}</div>
           <button
@@ -53,8 +53,7 @@ export default function Layout({ children, user, onLogout }: Props) {
           </button>
         </div>
       </aside>
-      
-      {/* Main */}
+
       <main className="flex-1 p-6 overflow-auto">
         {children}
       </main>

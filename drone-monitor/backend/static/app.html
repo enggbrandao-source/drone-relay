@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agryon Control App</title>
+  <style>
+    *{box-sizing:border-box;margin:0}
+    body{font-family:'Segoe UI',sans-serif;background:#0b0f19;color:#e5e7eb}
+    .page{min-height:100vh;padding:24px}
+    .login{max-width:430px;margin:60px auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:28px}
+    .login h1{color:#34d399;text-align:center;margin-bottom:8px}
+    .login p{color:#94a3b8;text-align:center;margin-bottom:18px}
+    .login label{display:block;font-size:13px;color:#94a3b8;margin-bottom:6px}
+    .login input,.select{width:100%;padding:12px 14px;margin-bottom:14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#020617;color:#fff}
+    .login button,.btn{background:#34d399;color:#052e16;border:none;border-radius:10px;padding:12px 14px;font-weight:700;cursor:pointer}
+    .btn.secondary{background:rgba(255,255,255,.06);color:#e5e7eb;border:1px solid rgba(255,255,255,.12)}
+    .err{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);color:#fca5a5;padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:13px}
+    .hidden{display:none}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+    .title{font-size:28px;font-weight:800;color:#34d399}
+    .muted{color:#94a3b8}
+    .user{font-size:13px;color:#94a3b8}
+    .logout{background:none;border:none;color:#f87171;cursor:pointer;margin-left:12px}
+    .toolbar,.subtoolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .toolbar button,.subtoolbar button{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:#cbd5e1;cursor:pointer}
+    .toolbar button.active,.subtoolbar button.active{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.25);color:#34d399}
+    .panel{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;margin-bottom:18px}
+    .summary-grid,.grid{display:grid;gap:14px}
+    .summary-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .summary-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;text-align:left;cursor:pointer}
+    .summary-card.active{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
+    .summary-card .date{font-size:18px;font-weight:800}
+    .summary-card .label,.mini .k,.table th{font-size:11px;color:#94a3b8;text-transform:uppercase}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+    .drone{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .status{font-size:11px;padding:4px 8px;border-radius:999px;font-weight:700}
+    .online{background:rgba(52,211,153,.12);color:#34d399}
+    .offline{background:rgba(248,113,113,.12);color:#f87171}
+    .warn{background:rgba(245,158,11,.16);color:#fbbf24}
+    .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+    .mini>div{background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center}
+    .mini .v{font-size:18px;font-weight:800;color:#fff}
+    .ops-list{display:grid;gap:12px;margin-top:12px}
+    .op-card{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}
+    .report-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .report-filters{display:grid;grid-template-columns:1fr 1fr auto;gap:10px}
+    .table-wrap{overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
+    .table{width:100%;border-collapse:collapse;background:rgba(0,0,0,.15)}
+    .table th,.table td{padding:12px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;font-size:13px}
+    .table td{color:#e5e7eb}
+    .pill{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}
+    @media (max-width: 900px){
+      .page{padding:16px}
+      .report-filters{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="page"></div>
+  <script>
+    const state = {
+      token: localStorage.getItem('agryon_token'),
+      user: JSON.parse(localStorage.getItem('agryon_user') || 'null'),
+      view: 'dashboard',
+      filter: 'all',
+      drones: {},
+      operationDays: [],
+      selectedDate: '',
+      selectedDay: null,
+      reportDroneId: ''
+    };
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[char]));
+    }
+
+    function fmt(value, digits = 0) {
+      if (value == null || value === '') return '--';
+      if (typeof value === 'number') return value.toFixed(digits);
+      return esc(value);
+    }
+
+    async function api(path, options = {}) {
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+      if (state.token) headers.Authorization = 'Bearer ' + state.token;
+      const response = await fetch(path, Object.assign({}, options, { headers }));
+      const text = await response.text();
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+      if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+      return data;
+    }
+
+    async function doLogin(event) {
+      event.preventDefault();
+      const errorBox = document.getElementById('err');
+      errorBox.classList.add('hidden');
+      try {
+        const data = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+          })
+        });
+        state.token = data.token;
+        state.user = data.user;
+        localStorage.setItem('agryon_token', state.token);
+        localStorage.setItem('agryon_user', JSON.stringify(state.user));
+        render();
+        await loadAll();
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    function logout() {
+      state.token = null;
+      state.user = null;
+      localStorage.removeItem('agryon_token');
+      localStorage.removeItem('agryon_user');
+      render();
+    }
+
+    function setView(view) {
+      state.view = view;
+      render();
+    }
+
+    function setFilter(filter) {
+      state.filter = filter;
+      render();
+    }
+
+    async function selectOperationDay(date) {
+      state.selectedDate = date;
+      await loadOperationDay();
+      render();
+    }
+
+    async function loadOperationDay() {
+      if (!state.token || !state.selectedDate) {
+        state.selectedDay = null;
+        return;
+      }
+      const path = state.reportDroneId
+        ? `/operations/${encodeURIComponent(state.selectedDate)}/${encodeURIComponent(state.reportDroneId)}`
+        : `/operations/${encodeURIComponent(state.selectedDate)}`;
+      state.selectedDay = await api(path);
+    }
+
+    async function loadAll() {
+      if (!state.token) return;
+      const [me, dashResponse, operations] = await Promise.all([
+        api('/api/me'),
+        fetch('/dash-all', { cache: 'no-store' }).then((res) => res.json()),
+        api('/operations')
+      ]);
+      state.user = Object.assign({}, state.user || {}, me);
+      state.drones = dashResponse;
+      state.operationDays = operations.days || [];
+      if (!state.selectedDate && state.operationDays[0]) {
+        state.selectedDate = state.operationDays[0].date;
+      }
+      await loadOperationDay();
+      render();
+    }
+
+    async function applyReportFilters(event) {
+      event.preventDefault();
+      state.reportDroneId = document.getElementById('reportDroneId').value.trim();
+      state.selectedDate = document.getElementById('reportDate').value;
+      await loadOperationDay();
+      render();
+    }
+
+    async function exportCsv() {
+      if (!state.token) return;
+      const params = new URLSearchParams();
+      if (state.selectedDate) params.set('date', state.selectedDate);
+      if (state.reportDroneId) params.set('droneId', state.reportDroneId);
+      const response = await fetch(`/operations/export.csv?${params.toString()}`, {
+        headers: { Authorization: 'Bearer ' + state.token }
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Falha ao exportar CSV');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `operations-${state.selectedDate || 'all'}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function getSummaryCards() {
+      if (!state.operationDays.length) {
+        return '<div class="panel"><div style="font-size:20px;font-weight:800;margin-bottom:6px">Resumo Operacional</div><div class="muted">Ainda não há operações registradas.</div></div>';
+      }
+      const cards = state.operationDays.map((day) => `
+        <button class="summary-card${state.selectedDate === day.date ? ' active' : ''}" onclick="selectOperationDay('${day.date}')">
+          <div class="date">${esc(day.dateLabel)}</div>
+          <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div><div class="label">Operações</div><div>${fmt(day.summary.operationsCount, 0)}</div></div>
+            <div><div class="label">Voos</div><div>${fmt(day.summary.totalFlights, 0)}</div></div>
+            <div><div class="label">Tempo</div><div>${esc(day.summary.totalOperationLabel || '--')}</div></div>
+            <div><div class="label">Hectares</div><div>${fmt(day.summary.totalHectares, 2)} ha</div></div>
+          </div>
+        </button>
+      `).join('');
+
+      let detail = '';
+      if (state.selectedDay) {
+        detail = `
+          <div class="panel">
+            <div style="font-size:20px;font-weight:800;margin-bottom:6px">${esc(state.selectedDay.dateLabel || state.selectedDate)}</div>
+            <div class="muted">Operações: ${fmt(state.selectedDay.summary.operationsCount, 0)} | Voos: ${fmt(state.selectedDay.summary.totalFlights, 0)} | Tempo: ${esc(state.selectedDay.summary.totalOperationLabel || '--')} | Hectares: ${fmt(state.selectedDay.summary.totalHectares, 2)} ha</div>
+            <div class="ops-list">
+              ${state.selectedDay.operations.map((operation, index) => `
+                <div class="op-card">
+                  <div class="row" style="margin-bottom:10px">
+                    <div style="font-weight:800">Operação ${index + 1} - ${esc(operation.droneCode)}</div>
+                    <div class="status ${operation.status === 'OPEN' ? 'warn' : 'online'}">${operation.status === 'OPEN' ? 'EM ANDAMENTO' : 'ENCERRADA'}</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+                    <div><div class="label">Início</div><div>${new Date(operation.startedAt).toLocaleTimeString('pt-BR')}</div></div>
+                    <div><div class="label">Fim</div><div>${operation.endedAt ? new Date(operation.endedAt).toLocaleTimeString('pt-BR') : '--'}</div></div>
+                    <div><div class="label">Duração</div><div>${esc(operation.durationLabel)}</div></div>
+                    <div><div class="label">Voos</div><div>${fmt(operation.totalFlights, 0)}</div></div>
+                    <div><div class="label">Hectares</div><div>${fmt(operation.hectaresWorked, 2)} ha</div></div>
+                    <div><div class="label">Piloto / Fazenda</div><div>${esc(operation.pilotName || '--')} / ${esc(operation.farmName || '--')}</div></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="panel">
+          <div class="row" style="margin-bottom:14px">
+            <div>
+              <div style="font-size:20px;font-weight:800">Resumo Operacional</div>
+              <div class="muted">Fechamento automático após 30 minutos sem novo voo</div>
+            </div>
+          </div>
+          <div class="summary-grid">${cards}</div>
+        </div>
+        ${detail}
+      `;
+    }
+
+    function getDashboardView() {
+      const ids = Object.keys(state.drones).sort().filter((id) => {
+        const online = !state.drones[id].offline;
+        return state.filter === 'all' || (state.filter === 'online' && online) || (state.filter === 'offline' && !online);
+      });
+
+      const cards = ids.map((id) => {
+        const drone = state.drones[id];
+        const online = !drone.offline;
+        return `
+          <div class="drone">
+            <div class="row">
+              <div>
+                <div style="font-size:20px;font-weight:800">${esc(id)}</div>
+                <div class="muted" style="font-size:12px">Piloto: ${esc(drone._pilot || '--')} | Fazenda: ${esc(drone._farm || '--')}</div>
+              </div>
+              <div class="status ${online ? 'online' : 'offline'}">${online ? 'ONLINE' : 'OFFLINE'}</div>
+            </div>
+            <div class="mini">
+              <div><div class="k">Velocidade</div><div class="v">${fmt(drone.speedKmh, 1)}</div></div>
+              <div><div class="k">Altitude</div><div class="v">${fmt(drone.altitude, 1)}</div></div>
+              <div><div class="k">Bateria</div><div class="v">${fmt(drone.batteryPercent, 0)}</div></div>
+              <div><div class="k">Tanque</div><div class="v">${fmt(drone.tankLiters, 2)}</div></div>
+              <div><div class="k">Satélites</div><div class="v">${fmt(drone.signalStrength, 0)}</div></div>
+              <div><div class="k">Status</div><div class="v" style="font-size:14px">${fmt(drone.operationalStatus, 0)}</div></div>
+            </div>
+            ${drone._version ? `<div style="margin-top:8px;font-size:11px;color:#64748b">APK v${esc(drone._version)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="subtoolbar">
+          <button class="${state.filter === 'all' ? 'active' : ''}" onclick="setFilter('all')">Todos</button>
+          <button class="${state.filter === 'online' ? 'active' : ''}" onclick="setFilter('online')">Online</button>
+          <button class="${state.filter === 'offline' ? 'active' : ''}" onclick="setFilter('offline')">Offline</button>
+        </div>
+        ${getSummaryCards()}
+        <div class="grid">${cards}</div>
+      `;
+    }
+
+    function getOperationsView() {
+      return getSummaryCards();
+    }
+
+    function getReportView() {
+      const rows = state.selectedDay?.operations || [];
+      return `
+        <div class="panel">
+          <div class="report-header">
+            <div>
+              <div style="font-size:20px;font-weight:800">Relatório Detalhado de Operações</div>
+              <div class="muted">Exporte os dados filtrados em CSV para análise.</div>
+            </div>
+            <button class="btn" onclick="exportCsv()">Exportar CSV</button>
+          </div>
+          <form class="report-filters" onsubmit="applyReportFilters(event)">
+            <input id="reportDate" class="select" value="${esc(state.selectedDate || '')}" placeholder="YYYY-MM-DD">
+            <input id="reportDroneId" class="select" value="${esc(state.reportDroneId || '')}" placeholder="Código do drone (opcional)">
+            <button class="btn secondary" type="submit">Aplicar filtros</button>
+          </form>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Drone</th>
+                  <th>Status</th>
+                  <th>Início</th>
+                  <th>Fim</th>
+                  <th>Duração</th>
+                  <th>Voos</th>
+                  <th>Hectares</th>
+                  <th>Piloto</th>
+                  <th>Fazenda</th>
+                  <th>Fechamento</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.length ? rows.map((operation) => `
+                  <tr>
+                    <td>${esc(operation.droneCode)}</td>
+                    <td><span class="pill ${operation.status === 'OPEN' ? 'warn' : 'online'}">${operation.status === 'OPEN' ? 'EM ANDAMENTO' : 'ENCERRADA'}</span></td>
+                    <td>${new Date(operation.startedAt).toLocaleString('pt-BR')}</td>
+                    <td>${operation.endedAt ? new Date(operation.endedAt).toLocaleString('pt-BR') : '--'}</td>
+                    <td>${esc(operation.durationLabel)}</td>
+                    <td>${fmt(operation.totalFlights, 0)}</td>
+                    <td>${fmt(operation.hectaresWorked, 2)} ha</td>
+                    <td>${esc(operation.pilotName || '--')}</td>
+                    <td>${esc(operation.farmName || '--')}</td>
+                    <td>${esc(operation.closeReason || '--')}</td>
+                  </tr>
+                `).join('') : '<tr><td colspan="10" class="muted">Nenhuma operação encontrada para os filtros atuais.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLogin() {
+      document.getElementById('app').innerHTML = `
+        <div class="login">
+          <h1>AGRYON</h1>
+          <p>Control — Monitoramento de Drones</p>
+          <div id="err" class="err hidden"></div>
+          <form onsubmit="doLogin(event)">
+            <label>Email</label>
+            <input id="email" type="email" value="admin@agryon.com">
+            <label>Senha</label>
+            <input id="password" type="password" value="admin123">
+            <button type="submit" style="width:100%">Entrar</button>
+          </form>
+          <p style="margin-top:14px;font-size:12px;color:#64748b;text-align:center">Demo: admin@agryon.com / admin123</p>
+        </div>
+      `;
+    }
+
+    function renderApp() {
+      const content = state.view === 'dashboard'
+        ? getDashboardView()
+        : state.view === 'operations'
+          ? getOperationsView()
+          : getReportView();
+
+      document.getElementById('app').innerHTML = `
+        <div class="top">
+          <div>
+            <div class="title">AGRYON CONTROL</div>
+            <div class="muted">Dashboard autenticado</div>
+          </div>
+          <div class="user">
+            ${esc(state.user?.name || '')} (${esc(state.user?.email || '')})
+            <button class="logout" onclick="logout()">Sair</button>
+          </div>
+        </div>
+        <div style="margin-bottom:12px"><a href="/map" class="btn" style="text-decoration:none;display:inline-block">Abrir mapa</a></div>
+        <div class="toolbar">
+          <button class="${state.view === 'dashboard' ? 'active' : ''}" onclick="setView('dashboard')">Dashboard</button>
+          <button class="${state.view === 'operations' ? 'active' : ''}" onclick="setView('operations')">Operações</button>
+          <button class="${state.view === 'report' ? 'active' : ''}" onclick="setView('report')">Relatório</button>
+        </div>
+        ${content}
+      `;
+    }
+
+    function render() {
+      if (!state.token) {
+        renderLogin();
+        return;
+      }
+      renderApp();
+    }
+
+    render();
+    if (state.token) {
+      loadAll();
+      setInterval(loadAll, 5000);
+    }
+  </script>
+</body>
+</html>
