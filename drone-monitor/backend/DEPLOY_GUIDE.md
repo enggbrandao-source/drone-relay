@@ -83,6 +83,17 @@ Preencha os campos:
 
 Clique em **Create Web Service**.
 
+### Variáveis de ambiente recomendadas
+
+Após criar o serviço, abra **Environment** no Render e configure:
+
+| Variável | Obrigatória | Uso |
+|----------|-------------|-----|
+| `JWT_SECRET` | Sim | Assinatura dos tokens do app |
+| `GOOGLE_MAPS_API_KEY` | Sim para Google Hybrid | Ativa as camadas `Google Hybrid` e `Google Satellite` |
+
+Se o `GOOGLE_MAPS_API_KEY` não estiver configurado, o mapa usará `Esri World Imagery` como fallback.
+
 ---
 
 ## Passo 6: Aguardar o deploy

@@ -40,6 +40,8 @@ wss://seu-app.onrender.com/dashboard?droneId=AGRAS001
 | Var | Padrao | Descricao |
 |-----|--------|-----------|
 | PORT | 8080 | Porta do servidor |
+| JWT_SECRET | agryon-default-secret | Chave JWT da autenticação |
+| GOOGLE_MAPS_API_KEY | vazio | Habilita Google Hybrid e Google Satellite no mapa servido pelo backend |
 
 ## Teste local
 

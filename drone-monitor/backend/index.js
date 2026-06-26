@@ -7,6 +7,15 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { loadStore, saveStore } = require('./store');
 const {
+  ESRI_WORLD_IMAGERY_LAYER,
+  GOOGLE_HYBRID_LAYER,
+  GOOGLE_SATELLITE_LAYER,
+  OPEN_STREET_MAP_LAYER,
+  getBaseLayerNames,
+  getDefaultBaseLayer,
+  getLayerNotice
+} = require('./mapLayers');
+const {
   OPERATION_INACTIVITY_MS,
   buildOperationsResponse,
   closeInactiveOperations,
@@ -374,6 +383,17 @@ poll();setInterval(poll,3000);
 </script>
 </body></html>`;
 
+const BASE_LAYER_NAMES_JSON = JSON.stringify(getBaseLayerNames({ googleEnabled: true }));
+const GOOGLE_HYBRID_LAYER_JSON = JSON.stringify(GOOGLE_HYBRID_LAYER);
+const GOOGLE_SATELLITE_LAYER_JSON = JSON.stringify(GOOGLE_SATELLITE_LAYER);
+const OPEN_STREET_MAP_LAYER_JSON = JSON.stringify(OPEN_STREET_MAP_LAYER);
+const ESRI_WORLD_IMAGERY_LAYER_JSON = JSON.stringify(ESRI_WORLD_IMAGERY_LAYER);
+const GOOGLE_MAPS_API_KEY_JSON = JSON.stringify(process.env.GOOGLE_MAPS_API_KEY || '');
+const DEFAULT_GOOGLE_BASE_LAYER_JSON = JSON.stringify(getDefaultBaseLayer({ googleEnabled: true }));
+const DEFAULT_FALLBACK_BASE_LAYER_JSON = JSON.stringify(getDefaultBaseLayer({ googleEnabled: false }));
+const NOTICE_MISSING_API_KEY_JSON = JSON.stringify(getLayerNotice({ apiKeyConfigured: false, googleEnabled: false }));
+const NOTICE_GOOGLE_UNAVAILABLE_JSON = JSON.stringify(getLayerNotice({ apiKeyConfigured: true, googleEnabled: false }));
+
 const MAP_HTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -382,15 +402,18 @@ const MAP_HTML = `<!DOCTYPE html>
 <title>Agryon Control - Mapa</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.13.6/Leaflet.GoogleMutant.js"></script>
 <style>
 *{margin:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0b0f19;color:#e0e0e0}
 #map{height:100vh;width:100vw}.overlay{position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(11,15,25,0.95);padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:12px;color:#9aa0a6;z-index:1000}
 .overlay a{color:#00FF88;text-decoration:none;margin-left:8px}.legend{position:fixed;bottom:8px;right:8px;background:rgba(11,15,25,0.95);padding:8px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:11px;color:#9aa0a6;z-index:1000}
-.legend-item{display:flex;align-items:center;gap:6px;margin:2px 0}.legend-color{width:12px;height:12px;border-radius:2px}
+.legend-item{display:flex;align-items:center;gap:6px;margin:2px 0}.legend-color{width:12px;height:12px;border-radius:2px}.layer-notice{position:fixed;top:56px;right:8px;max-width:280px;background:rgba(11,15,25,0.95);padding:8px 10px;border-radius:10px;border:1px solid rgba(0,255,136,0.16);font-size:11px;color:#cbd5e1;z-index:1000;line-height:1.4}.agryon-layers-title{margin-bottom:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8}
+.leaflet-top.leaflet-right{top:8px;right:8px}.leaflet-control-layers{border:1px solid rgba(0,255,136,0.2)!important;background:rgba(11,15,25,0.96)!important;color:#e2e8f0!important;border-radius:10px!important;box-shadow:0 10px 30px rgba(0,0,0,0.28)!important}.leaflet-control-layers-toggle{filter:invert(89%) sepia(33%) saturate(669%) hue-rotate(92deg) brightness(96%) contrast(88%)}.leaflet-control-layers-expanded{padding:10px 12px!important}.leaflet-control-layers label{font-size:12px}
 </style>
 </head>
 <body>
 <div class="overlay">AGRYON GPS <a href="/app">Voltar</a></div>
+<div id="layerNotice" class="layer-notice" style="display:none"></div>
 <div id="map"></div>
 <div class="legend">
   <div class="legend-item"><div class="legend-color" style="background:#00FF88"></div>Drone online</div>
@@ -398,14 +421,124 @@ const MAP_HTML = `<!DOCTYPE html>
   <div class="legend-item"><div class="legend-color" style="background:rgba(0,255,136,0.15);border:1px solid #00FF88"></div>Area de trabalho</div>
 </div>
 <script>
-const map=L.map('map').setView([-14.2,-51.9],4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OpenStreetMap'}).addTo(map);
-let markers={}, workAreas={}, viewSet=false;
+const GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY_JSON};
+const FALLBACK_CENTER=[-14.2,-51.9];
+const mapState={map:null,baseLayers:{},baseLayerControl:null,activeBaseLayerKey:'',droneMarkersLayer:null,workAreasLayer:null,markers:{},workAreas:{},viewSet:false};
 function fmt(v,r){if(v==null)return'--';if(typeof v==='number')return v.toFixed(r);return v}
+function showLayerNotice(message){
+  const notice=document.getElementById('layerNotice');
+  if(!notice)return;
+  if(!message){notice.style.display='none';notice.textContent='';return;}
+  notice.textContent=message;
+  notice.style.display='block';
+}
 function createWorkArea(lat, lon, hectares){
   if(lat==null||lon==null)return null;
-  const size = hectares ? Math.sqrt(hectares) * 0.00045 : 0.0009;
+  const size=hectares?Math.sqrt(hectares)*0.00045:0.0009;
   return L.polygon([[lat-size,lon-size],[lat-size,lon+size],[lat+size,lon+size],[lat+size,lon-size]],{color:'#00FF88',fillColor:'#00FF88',fillOpacity:0.1,weight:1,dashArray:'5, 5'});
+}
+function createEsriWorldImageryLayer(){
+  return L.layerGroup([
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri'}),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri'}),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri'})
+  ]);
+}
+function createOpenStreetMapLayer(){
+  return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'});
+}
+function createBaseLayers(googleEnabled){
+  const baseLayers={};
+  const availableLayerNames=${BASE_LAYER_NAMES_JSON};
+  availableLayerNames.forEach(function(layerName){
+    if(layerName===${GOOGLE_HYBRID_LAYER_JSON}){
+      if(googleEnabled&&L.gridLayer&&typeof L.gridLayer.googleMutant==='function'){
+        baseLayers[layerName]=L.gridLayer.googleMutant({type:'hybrid',maxZoom:21});
+      }
+      return;
+    }
+    if(layerName===${GOOGLE_SATELLITE_LAYER_JSON}){
+      if(googleEnabled&&L.gridLayer&&typeof L.gridLayer.googleMutant==='function'){
+        baseLayers[layerName]=L.gridLayer.googleMutant({type:'satellite',maxZoom:21});
+      }
+      return;
+    }
+    if(layerName===${OPEN_STREET_MAP_LAYER_JSON}){
+      baseLayers[layerName]=createOpenStreetMapLayer();
+      return;
+    }
+    if(layerName===${ESRI_WORLD_IMAGERY_LAYER_JSON}){
+      baseLayers[layerName]=createEsriWorldImageryLayer();
+    }
+  });
+  return baseLayers;
+}
+function getDefaultBaseLayerKey(googleEnabled){
+  return googleEnabled?${DEFAULT_GOOGLE_BASE_LAYER_JSON}:${DEFAULT_FALLBACK_BASE_LAYER_JSON};
+}
+function getLayerNoticeMessage(apiKeyConfigured, googleEnabled){
+  if(!apiKeyConfigured)return ${NOTICE_MISSING_API_KEY_JSON};
+  if(!googleEnabled)return ${NOTICE_GOOGLE_UNAVAILABLE_JSON};
+  return '';
+}
+function applyBaseLayer(layerKey){
+  if(!mapState.map||!mapState.baseLayers[layerKey])return;
+  if(mapState.activeBaseLayerKey&&mapState.baseLayers[mapState.activeBaseLayerKey]){
+    mapState.map.removeLayer(mapState.baseLayers[mapState.activeBaseLayerKey]);
+  }
+  mapState.activeBaseLayerKey=layerKey;
+  const nextLayer=mapState.baseLayers[layerKey];
+  if(!mapState.map.hasLayer(nextLayer))nextLayer.addTo(mapState.map);
+}
+function setupLayerControl(){
+  if(mapState.baseLayerControl)mapState.map.removeControl(mapState.baseLayerControl);
+  mapState.baseLayerControl=L.control.layers(mapState.baseLayers,{}, {collapsed:true,position:'topright'}).addTo(mapState.map);
+  const container=mapState.baseLayerControl.getContainer();
+  if(container){
+    container.setAttribute('title','Camadas');
+    if(!container.querySelector('.agryon-layers-title')){
+      const title=document.createElement('div');
+      title.className='agryon-layers-title';
+      title.textContent='Camadas';
+      const list=container.querySelector('.leaflet-control-layers-list');
+      container.insertBefore(title,list||null);
+    }
+  }
+}
+function initializeMap(){
+  mapState.map=L.map('map',{zoomControl:true,preferCanvas:true}).setView(FALLBACK_CENTER,4);
+  mapState.droneMarkersLayer=L.layerGroup().addTo(mapState.map);
+  mapState.workAreasLayer=L.layerGroup().addTo(mapState.map);
+  mapState.map.on('baselayerchange',function(event){
+    const key=Object.keys(mapState.baseLayers).find(function(name){return mapState.baseLayers[name]===event.layer});
+    if(key)mapState.activeBaseLayerKey=key;
+  });
+}
+function ensureGoogleMaps(){
+  if(!GOOGLE_MAPS_API_KEY)return Promise.resolve(false);
+  if(window.google&&window.google.maps&&L.gridLayer&&typeof L.gridLayer.googleMutant==='function')return Promise.resolve(true);
+  return new Promise(function(resolve){
+    let settled=false;
+    const finish=function(value){if(settled)return;settled=true;resolve(value);};
+    const existing=document.querySelector('script[data-google-maps=\"true\"]');
+    const callbackName='__agryonGoogleMapsReady';
+    window[callbackName]=function(){finish(!!(window.google&&window.google.maps));delete window[callbackName];};
+    if(existing){
+      const waitForGoogle=setInterval(function(){
+        if(window.google&&window.google.maps){clearInterval(waitForGoogle);finish(true);}
+      },150);
+      setTimeout(function(){clearInterval(waitForGoogle);finish(false);},12000);
+      return;
+    }
+    const script=document.createElement('script');
+    script.async=true;
+    script.defer=true;
+    script.dataset.googleMaps='true';
+    script.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE_MAPS_API_KEY)+'&v=weekly&callback='+callbackName;
+    script.onerror=function(){finish(false);delete window[callbackName];};
+    document.head.appendChild(script);
+    setTimeout(function(){finish(false);delete window[callbackName];},12000);
+  });
 }
 async function refresh(){
   try{
@@ -417,28 +550,57 @@ async function refresh(){
       const lat=d.latitude!=null?d.latitude:null;
       const lon=d.longitude!=null?d.longitude:null;
       const hasCoords=lat!=null&&lon!=null;
-      const online=hasCoords && d.offline!==true;
+      const online=hasCoords&&d.offline!==true;
       if(hasCoords&&!firstValid)firstValid={lat:lat,lon:lon};
       const color=online?'#00FF88':'#FF6B2C';
-      const popup='<div style="min-width:180px"><div style="font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px">'+id+'</div><div style="font-size:11px;color:#aaa">'+(online?'<span style="color:#00FF88">ONLINE</span>':'<span style="color:#FF6B2C">OFFLINE</span>')+'</div><hr style="border:0;border-top:1px solid #333;margin:6px 0"><div style="font-size:12px">Piloto: <b>'+(d._pilot||'-')+'</b><br>Fazenda: <b>'+(d._farm||'-')+'</b></div><hr style="border:0;border-top:1px solid #333;margin:6px 0"><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px"><div>Bateria: <b>'+(d.batteryPercent ?? '--')+'%</b></div><div>Tanque: <b>'+fmt(d.tankLiters,2)+'L</b></div><div>Vel: <b>'+fmt(d.speedKmh,1)+'km/h</b></div><div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div><div>Sats: <b>'+(d.signalStrength||'-')+'</b></div><div>Status: <b>'+(d.operationalStatus||'-')+'</b></div><div>RTK: <b>'+(d.rtkStatus||'-')+'</b></div></div></div>';
-      if(markers[id]){
-        markers[id].marker.setLatLng([lat||-14.2,lon||-51.9]).setPopupContent(popup);
-        markers[id].circle.setLatLng([lat||-14.2,lon||-51.9]).setStyle({fillColor:color,color:color});
+      const popup='<div style=\"min-width:180px\"><div style=\"font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px\">'+id+'</div><div style=\"font-size:11px;color:#aaa\">'+(online?'<span style=\"color:#00FF88\">ONLINE</span>':'<span style=\"color:#FF6B2C\">OFFLINE</span>')+'</div><hr style=\"border:0;border-top:1px solid #333;margin:6px 0\"><div style=\"font-size:12px\">Piloto: <b>'+(d._pilot||'-')+'</b><br>Fazenda: <b>'+(d._farm||'-')+'</b></div><hr style=\"border:0;border-top:1px solid #333;margin:6px 0\"><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px\"><div>Bateria: <b>'+(d.batteryPercent ?? '--')+'%</b></div><div>Tanque: <b>'+fmt(d.tankLiters,2)+'L</b></div><div>Vel: <b>'+fmt(d.speedKmh,1)+'km/h</b></div><div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div><div>Sats: <b>'+(d.signalStrength||'-')+'</b></div><div>Status: <b>'+(d.operationalStatus||'-')+'</b></div><div>RTK: <b>'+(d.rtkStatus||'-')+'</b></div></div></div>';
+      if(mapState.markers[id]){
+        mapState.markers[id].marker.setLatLng([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]]).setPopupContent(popup);
+        mapState.markers[id].circle.setLatLng([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]]).setStyle({fillColor:color,color:color});
       }else{
-        markers[id]={marker:L.marker([lat||-14.2,lon||-51.9]).addTo(map).bindPopup(popup),circle:L.circleMarker([lat||-14.2,lon||-51.9],{radius:8,fillColor:color,color:color,weight:2,fillOpacity:0.6}).addTo(map)};
+        mapState.markers[id]={
+          marker:L.marker([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]]).addTo(mapState.droneMarkersLayer).bindPopup(popup),
+          circle:L.circleMarker([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]],{radius:8,fillColor:color,color:color,weight:2,fillOpacity:0.6}).addTo(mapState.droneMarkersLayer)
+        };
       }
-      if(online && d.hectaresApplied > 0){
-        if(workAreas[id]) map.removeLayer(workAreas[id]);
+      if(online&&d.hectaresApplied>0){
+        if(mapState.workAreas[id])mapState.workAreasLayer.removeLayer(mapState.workAreas[id]);
         const area=createWorkArea(lat,lon,d.hectaresApplied);
-        if(area){ area.addTo(map); workAreas[id]=area; }
+        if(area){area.addTo(mapState.workAreasLayer);mapState.workAreas[id]=area;}
+      }else if(mapState.workAreas[id]){
+        mapState.workAreasLayer.removeLayer(mapState.workAreas[id]);
+        delete mapState.workAreas[id];
       }
     });
-    Object.keys(markers).forEach(function(id){if(!data[id]){map.removeLayer(markers[id].marker);map.removeLayer(markers[id].circle);delete markers[id];}});
-    Object.keys(workAreas).forEach(function(id){if(!data[id]||data[id].offline){map.removeLayer(workAreas[id]);delete workAreas[id];}});
-    if(firstValid && !viewSet){map.setView([firstValid.lat,firstValid.lon],15);viewSet=true;}
+    Object.keys(mapState.markers).forEach(function(id){
+      if(!data[id]){
+        mapState.droneMarkersLayer.removeLayer(mapState.markers[id].marker);
+        mapState.droneMarkersLayer.removeLayer(mapState.markers[id].circle);
+        delete mapState.markers[id];
+      }
+    });
+    Object.keys(mapState.workAreas).forEach(function(id){
+      if(!data[id]||data[id].offline||!(data[id].hectaresApplied>0)){
+        mapState.workAreasLayer.removeLayer(mapState.workAreas[id]);
+        delete mapState.workAreas[id];
+      }
+    });
+    if(firstValid&&!mapState.viewSet){mapState.map.setView([firstValid.lat,firstValid.lon],15);mapState.viewSet=true;}
   }catch(e){console.error(e);}
 }
-refresh();setInterval(refresh,5000);
+async function bootstrapMap(){
+  initializeMap();
+  const googleEnabled=await ensureGoogleMaps();
+  mapState.baseLayers=createBaseLayers(googleEnabled);
+  applyBaseLayer(getDefaultBaseLayerKey(googleEnabled));
+  setupLayerControl();
+  showLayerNotice('');
+  const layerNotice=getLayerNoticeMessage(Boolean(GOOGLE_MAPS_API_KEY),googleEnabled);
+  if(layerNotice)showLayerNotice(layerNotice);
+  await refresh();
+  setInterval(refresh,5000);
+}
+bootstrapMap();
 </script>
 </body></html>`;
 
