@@ -390,7 +390,7 @@ const MAP_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<div class="overlay">AGRYON GPS <a href="/dashboard.html">Voltar</a></div>
+<div class="overlay">AGRYON GPS <a href="/app" onclick="if(document.referrer){history.back();return false}">Voltar</a></div>
 <div id="map"></div>
 <div class="legend">
   <div class="legend-item"><div class="legend-color" style="background:#00FF88"></div>Drone online</div>

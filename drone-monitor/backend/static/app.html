@@ -369,7 +369,10 @@
               <div><div class="k">Altitude</div><div class="v">${fmt(drone.altitude, 1)}</div></div>
               <div><div class="k">Bateria</div><div class="v">${fmt(drone.batteryPercent, 0)}</div></div>
               <div><div class="k">Tanque</div><div class="v">${fmt(drone.tankLiters, 2)}</div></div>
+              <div><div class="k">Vazão</div><div class="v">${fmt(drone.flowRate, 1)}</div></div>
+              <div><div class="k">Hectares</div><div class="v">${fmt(drone.hectaresApplied, 2)}</div></div>
               <div><div class="k">Satélites</div><div class="v">${fmt(drone.signalStrength, 0)}</div></div>
+              <div><div class="k">RTK</div><div class="v" style="font-size:14px">${fmt(drone.rtkStatus, 0)}</div></div>
               <div><div class="k">Status</div><div class="v" style="font-size:14px">${fmt(drone.operationalStatus, 0)}</div></div>
             </div>
             ${drone._version ? `<div style="margin-top:8px;font-size:11px;color:#64748b">APK v${esc(drone._version)}</div>` : ''}
