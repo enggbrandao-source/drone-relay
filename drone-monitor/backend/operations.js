@@ -302,10 +302,12 @@ function serializeOperation(operation, operationStates = null, nowMs = Date.now(
   };
 }
 
-function filterOperations(operations, { companyId = null, dateKey = null, droneFilter = null } = {}) {
+function filterOperations(operations, { companyId = null, dateKey = null, dateFrom = null, dateTo = null, droneFilter = null } = {}) {
   return operations.filter((operation) => {
     if (companyId && operation.companyId !== companyId) return false;
     if (dateKey && operation.date !== dateKey) return false;
+    if (!dateKey && dateFrom && operation.date < dateFrom) return false;
+    if (!dateKey && dateTo && operation.date > dateTo) return false;
     if (droneFilter && operation.droneCode !== droneFilter && operation.droneId !== droneFilter) return false;
     return true;
   });
@@ -377,13 +379,20 @@ function listOperationDays(operations, filters = {}, operationStates = null, now
     .sort((left, right) => right.date.localeCompare(left.date));
 }
 
-function buildOperationsResponse(operations, { dateKey, companyId = null, droneFilter = null, operationStates = null, nowMs = Date.now() } = {}) {
-  const filtered = filterOperations(operations, { companyId, dateKey, droneFilter }).sort((left, right) => {
+function buildOperationsResponse(operations, { dateKey, dateFrom = null, dateTo = null, companyId = null, droneFilter = null, operationStates = null, nowMs = Date.now() } = {}) {
+  const filtered = filterOperations(operations, { companyId, dateKey, dateFrom, dateTo, droneFilter }).sort((left, right) => {
     return Date.parse(left.startedAt) - Date.parse(right.startedAt);
   });
   return {
     date: dateKey,
     dateLabel: dateKey ? formatDateKeyToLabel(dateKey) : null,
+    dateFrom,
+    dateTo,
+    rangeLabel: dateKey
+      ? formatDateKeyToLabel(dateKey)
+      : dateFrom || dateTo
+        ? `${dateFrom ? formatDateKeyToLabel(dateFrom) : '...'} até ${dateTo ? formatDateKeyToLabel(dateTo) : '...'}`
+        : null,
     summary: buildDaySummary(filtered, operationStates, nowMs),
     operations: filtered.map((operation) => serializeOperation(operation, operationStates, nowMs))
   };

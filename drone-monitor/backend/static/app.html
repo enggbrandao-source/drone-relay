@@ -68,6 +68,8 @@
       drones: {},
       operationDays: [],
       selectedDate: '',
+      dateFrom: '',
+      dateTo: '',
       selectedDay: null,
       reportDroneId: ''
     };
@@ -158,16 +160,19 @@
 
     async function loadAll() {
       if (!state.token) return;
+      const operationsParams = new URLSearchParams();
+      if (state.dateFrom) operationsParams.set('dateFrom', state.dateFrom);
+      if (state.dateTo) operationsParams.set('dateTo', state.dateTo);
       const [me, dashResponse, operations] = await Promise.all([
         api('/api/me'),
         fetch('/dash-all', { cache: 'no-store' }).then((res) => res.json()),
-        api('/operations')
+        api(`/operations${operationsParams.toString() ? `?${operationsParams.toString()}` : ''}`)
       ]);
       state.user = Object.assign({}, state.user || {}, me);
       state.drones = dashResponse;
       state.operationDays = operations.days || [];
-      if (!state.selectedDate && state.operationDays[0]) {
-        state.selectedDate = state.operationDays[0].date;
+      if (!state.selectedDate || !state.operationDays.some((day) => day.date === state.selectedDate)) {
+        state.selectedDate = state.operationDays[0]?.date || '';
       }
       await loadOperationDay();
       render();
@@ -175,8 +180,11 @@
 
     async function applyReportFilters(event) {
       event.preventDefault();
+      state.dateFrom = document.getElementById('reportDateFrom').value;
+      state.dateTo = document.getElementById('reportDateTo').value;
       state.reportDroneId = document.getElementById('reportDroneId').value.trim();
       state.selectedDate = document.getElementById('reportDate').value;
+      await loadAll();
       await loadOperationDay();
       render();
     }
@@ -185,6 +193,8 @@
       if (!state.token) return;
       const params = new URLSearchParams();
       if (state.selectedDate) params.set('date', state.selectedDate);
+      if (state.dateFrom) params.set('dateFrom', state.dateFrom);
+      if (state.dateTo) params.set('dateTo', state.dateTo);
       if (state.reportDroneId) params.set('droneId', state.reportDroneId);
       const response = await fetch(`/operations/export.csv?${params.toString()}`, {
         headers: { Authorization: 'Bearer ' + state.token }
@@ -197,7 +207,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `operations-${state.selectedDate || 'all'}.csv`;
+      link.download = `operations-${state.selectedDate || state.dateFrom || 'all'}${state.dateTo ? `-${state.dateTo}` : ''}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -226,7 +236,7 @@
       if (state.selectedDay) {
         detail = `
           <div class="panel">
-            <div style="font-size:20px;font-weight:800;margin-bottom:6px">${esc(state.selectedDay.dateLabel || state.selectedDate)}</div>
+            <div style="font-size:20px;font-weight:800;margin-bottom:6px">${esc(state.selectedDay.rangeLabel || state.selectedDay.dateLabel || state.selectedDate)}</div>
             <div class="muted">Operações: ${fmt(state.selectedDay.summary.operationsCount, 0)} | Voos: ${fmt(state.selectedDay.summary.totalFlights, 0)} | Tempo total: ${fmtDuration(state.selectedDay.summary.totalOperationLabel)} | Voo efetivo: ${fmtDuration(state.selectedDay.summary.totalEffectiveFlightLabel)} | Pausa: ${fmtDuration(state.selectedDay.summary.totalPausedLabel)} | Média pausa: ${fmtDuration(state.selectedDay.summary.averagePauseLabel)} | Hectares: ${fmt(state.selectedDay.summary.totalHectares, 2)} ha</div>
             <div class="ops-list">
               ${state.selectedDay.operations.map((operation, index) => `
@@ -320,15 +330,20 @@
           <div class="report-header">
             <div>
               <div style="font-size:20px;font-weight:800">Relatório Detalhado de Operações</div>
-              <div class="muted">Exporte os dados filtrados em CSV para análise.</div>
+              <div class="muted">Exporte os dados filtrados em CSV, com intervalo de datas e seleção rápida por clique.</div>
             </div>
             <button class="btn" onclick="exportCsv()">Exportar CSV</button>
           </div>
           <form class="report-filters" onsubmit="applyReportFilters(event)">
-            <input id="reportDate" type="date" class="select" value="${esc(state.selectedDate || '')}">
+            <input id="reportDateFrom" type="date" class="select" value="${esc(state.dateFrom || '')}" max="${esc(state.dateTo || '')}" list="operation-days">
+            <input id="reportDateTo" type="date" class="select" value="${esc(state.dateTo || '')}" min="${esc(state.dateFrom || '')}" list="operation-days">
+            <input id="reportDate" type="date" class="select" value="${esc(state.selectedDate || '')}" list="operation-days">
             <input id="reportDroneId" class="select" value="${esc(state.reportDroneId || '')}" placeholder="Código do drone (opcional)">
             <button class="btn secondary" type="submit">Aplicar filtros</button>
           </form>
+          <datalist id="operation-days">
+            ${state.operationDays.map((day) => `<option value="${esc(day.date)}"></option>`).join('')}
+          </datalist>
           <div class="table-wrap">
             <table class="table">
               <thead>

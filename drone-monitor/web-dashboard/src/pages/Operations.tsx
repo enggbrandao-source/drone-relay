@@ -18,6 +18,8 @@ function fmtDuration(value?: string | null) {
 export default function Operations({ apiUrl, token }: Props) {
   const [days, setDays] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedDay, setSelectedDay] = useState<any | null>(null);
   const [droneId, setDroneId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -26,20 +28,26 @@ export default function Operations({ apiUrl, token }: Props) {
   useEffect(() => {
     async function loadDays() {
       try {
-        const response = await fetch(`${apiUrl}/operations`, {
+        const params = new URLSearchParams();
+        if (dateFrom) params.set('dateFrom', dateFrom);
+        if (dateTo) params.set('dateTo', dateTo);
+        const response = await fetch(`${apiUrl}/operations${params.toString() ? `?${params.toString()}` : ''}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!response.ok) return;
         const data = await response.json();
         const nextDays = data.days || [];
         setDays(nextDays);
-        setSelectedDate((current) => current || nextDays[0]?.date || '');
+        setSelectedDate((current) => {
+          if (current && nextDays.some((day: any) => day.date === current)) return current;
+          return nextDays[0]?.date || '';
+        });
       } finally {
         setLoading(false);
       }
     }
     loadDays();
-  }, [apiUrl, token]);
+  }, [apiUrl, token, dateFrom, dateTo]);
 
   useEffect(() => {
     if (!selectedDate) {
@@ -65,11 +73,14 @@ export default function Operations({ apiUrl, token }: Props) {
     loadDetail();
   }, [apiUrl, selectedDate, droneId, token]);
 
-  const canExport = useMemo(() => Boolean(selectedDate), [selectedDate]);
+  const canExport = useMemo(() => Boolean(selectedDate || dateFrom || dateTo), [selectedDate, dateFrom, dateTo]);
 
   async function exportCsv() {
-    if (!selectedDate) return;
-    const params = new URLSearchParams({ date: selectedDate });
+    if (!selectedDate && !dateFrom && !dateTo) return;
+    const params = new URLSearchParams();
+    if (selectedDate) params.set('date', selectedDate);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
     if (droneId.trim()) params.set('droneId', droneId.trim());
     const response = await fetch(`${apiUrl}/operations/export.csv?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -81,7 +92,7 @@ export default function Operations({ apiUrl, token }: Props) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `operations-${selectedDate}${droneId.trim() ? `-${droneId.trim()}` : ''}.csv`;
+    link.download = `operations-${selectedDate || dateFrom || 'all'}${dateTo ? `-${dateTo}` : ''}${droneId.trim() ? `-${droneId.trim()}` : ''}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -97,7 +108,7 @@ export default function Operations({ apiUrl, token }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Relatório de Operações</h2>
-          <p className="text-sm text-gray-400">Visualize as operações do dia e exporte os dados em CSV.</p>
+          <p className="text-sm text-gray-400">Visualize as operações do dia, use intervalo de datas e exporte os dados em CSV.</p>
         </div>
         <button
           onClick={exportCsv}
@@ -109,13 +120,36 @@ export default function Operations({ apiUrl, token }: Props) {
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Data</label>
+            <label className="block text-sm text-gray-400 mb-2">Data inicial</label>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(event) => setDateFrom(event.target.value)}
+              list="operation-days"
+              className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Data final</label>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(event) => setDateTo(event.target.value)}
+              list="operation-days"
+              className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Dia detalhado</label>
             <input
               type="date"
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
+              list="operation-days"
               className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
             />
           </div>
@@ -129,6 +163,11 @@ export default function Operations({ apiUrl, token }: Props) {
             />
           </div>
         </div>
+        <datalist id="operation-days">
+          {days.map((day) => (
+            <option key={day.date} value={day.date} />
+          ))}
+        </datalist>
       </div>
 
       {detailLoading ? (
@@ -138,7 +177,7 @@ export default function Operations({ apiUrl, token }: Props) {
       ) : selectedDay ? (
         <>
           <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-            <h3 className="text-lg font-bold">{selectedDay.dateLabel}</h3>
+            <h3 className="text-lg font-bold">{selectedDay.rangeLabel || selectedDay.dateLabel}</h3>
             <div className="mt-2 text-sm text-gray-400">
               Operações: {selectedDay.summary.operationsCount} | Voos: {selectedDay.summary.totalFlights} | Tempo total: {fmtDuration(selectedDay.summary.totalOperationLabel)} | Voo efetivo: {fmtDuration(selectedDay.summary.totalEffectiveFlightLabel)} | Pausa: {fmtDuration(selectedDay.summary.totalPausedLabel)} | Média pausa: {fmtDuration(selectedDay.summary.averagePauseLabel)} | Hectares: {fmt(selectedDay.summary.totalHectares, 2)} ha
             </div>

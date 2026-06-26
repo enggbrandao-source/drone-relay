@@ -651,8 +651,14 @@ const server = http.createServer((req, res) => {
       if (closeInactiveOperations({ operations: db.operations, operationStates: db.operationStates })) {
         schedulePersist();
       }
+      const dateFrom = parsedUrl.query.dateFrom ? normalizeDateParam(parsedUrl.query.dateFrom) : null;
+      const dateTo = parsedUrl.query.dateTo ? normalizeDateParam(parsedUrl.query.dateTo) : null;
       sendJson(res, 200, {
-        days: listOperationDays(db.operations, { companyId: getOperationsCompanyFilter(req.user) }, db.operationStates)
+        days: listOperationDays(db.operations, {
+          companyId: getOperationsCompanyFilter(req.user),
+          dateFrom,
+          dateTo
+        }, db.operationStates)
       });
     });
     return;
@@ -662,6 +668,8 @@ const server = http.createServer((req, res) => {
     authMiddleware(req, res, () => {
       const companyId = getOperationsCompanyFilter(req.user);
       const dateKey = parsedUrl.query.date ? normalizeDateParam(parsedUrl.query.date) : null;
+      const dateFrom = parsedUrl.query.dateFrom ? normalizeDateParam(parsedUrl.query.dateFrom) : null;
+      const dateTo = parsedUrl.query.dateTo ? normalizeDateParam(parsedUrl.query.dateTo) : null;
       const droneFilter = parsedUrl.query.droneId ? String(parsedUrl.query.droneId) : null;
       if (closeInactiveOperations({ operations: db.operations, operationStates: db.operationStates })) {
         schedulePersist();
@@ -669,12 +677,14 @@ const server = http.createServer((req, res) => {
       const payload = buildOperationsResponse(db.operations, {
         companyId,
         dateKey,
+        dateFrom,
+        dateTo,
         droneFilter,
         operationStates: db.operationStates
       });
       res.writeHead(200, {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="operations-${dateKey || 'all'}${droneFilter ? `-${droneFilter}` : ''}.csv"`
+        'Content-Disposition': `attachment; filename="operations-${dateKey || dateFrom || 'all'}${dateTo ? `-${dateTo}` : ''}${droneFilter ? `-${droneFilter}` : ''}.csv"`
       });
       res.end(buildOperationsCsv(payload.operations));
     });
