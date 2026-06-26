@@ -35,11 +35,11 @@ function formatDateKeyToLabel(dateKey) {
 
 function formatDuration(ms) {
   const safeMs = Math.max(0, Number(ms) || 0);
-  const totalMinutes = Math.floor(safeMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}min`;
-  return `${minutes}min`;
+  const totalSeconds = Math.floor(safeMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 function ensureOperationState(operationStates, droneCode) {
@@ -53,6 +53,7 @@ function ensureOperationState(operationStates, droneCode) {
       lastTelemetryAt: null,
       lastLandingAt: null,
       lastTakeoffAt: null,
+      pauseStartedAt: null,
       lastPilotName: null,
       lastFarmName: null
     };
@@ -81,6 +82,7 @@ function createOperationRecord({ operations, droneCode, droneId, companyId, tele
     lastTelemetryAt: new Date(telemetryAtMs).toISOString(),
     totalFlights: 0,
     totalOperationMs: 0,
+    totalPausedMs: 0,
     hectaresStart: null,
     hectaresEnd: null,
     hectaresWorked: 0,
@@ -89,6 +91,45 @@ function createOperationRecord({ operations, droneCode, droneId, companyId, tele
     status: 'OPEN',
     closeReason: null
   };
+}
+
+function getOperationState(operationStates, operation) {
+  if (!operationStates || !operation) return null;
+  const state = operationStates[operation.droneCode];
+  if (!state) return null;
+  return state.currentOperationId === operation.id ? state : null;
+}
+
+function addPauseDuration(operation, state, endedAtMs) {
+  const pauseStartedAtMs = Number(state?.pauseStartedAt);
+  if (!operation || !state || !Number.isFinite(pauseStartedAtMs)) return false;
+  const delta = Math.max(0, endedAtMs - pauseStartedAtMs);
+  if (delta <= 0) {
+    state.pauseStartedAt = null;
+    return false;
+  }
+  operation.totalPausedMs = Math.max(0, Number(operation.totalPausedMs) || 0) + delta;
+  state.pauseStartedAt = null;
+  return true;
+}
+
+function getPauseIntervalsCount(operation) {
+  return Math.max(0, (Number(operation?.totalFlights) || 0) - 1);
+}
+
+function getOperationPausedMs(operation, state = null, nowMs = Date.now()) {
+  let totalPausedMs = Math.max(0, Number(operation?.totalPausedMs) || 0);
+  const pauseStartedAtMs = Number(state?.pauseStartedAt);
+  if (operation?.status !== 'CLOSED' && state && !state.inFlight && Number.isFinite(pauseStartedAtMs)) {
+    totalPausedMs += Math.max(0, nowMs - pauseStartedAtMs);
+  }
+  return totalPausedMs;
+}
+
+function getAveragePauseMs(totalPausedMs, totalFlights) {
+  const intervals = Math.max(0, (Number(totalFlights) || 0) - 1);
+  if (intervals <= 0) return null;
+  return Math.max(0, totalPausedMs) / intervals;
 }
 
 function updateOperationHectares(operation, state, hectaresApplied) {
@@ -114,12 +155,15 @@ function updateOperationHectares(operation, state, hectaresApplied) {
 
 function finalizeOperation(operation, state, endedAtMs, closeReason = 'inactivity_after_landing') {
   if (!operation || operation.status === 'CLOSED') return false;
+  addPauseDuration(operation, state, endedAtMs);
   operation.endedAt = new Date(endedAtMs).toISOString();
   operation.totalOperationMs = Math.max(0, endedAtMs - Date.parse(operation.startedAt));
+  operation.totalEffectiveFlightMs = Math.max(0, operation.totalOperationMs - Math.max(0, Number(operation.totalPausedMs) || 0));
   operation.status = 'CLOSED';
   operation.closeReason = closeReason;
   state.currentOperationId = null;
   state.inFlight = false;
+  state.pauseStartedAt = null;
   return true;
 }
 
@@ -135,7 +179,7 @@ function closeInactiveOperations({ operations, operationStates, nowMs = Date.now
     }
     const lastLandingAtMs = Number(state.lastLandingAt);
     if (!state.inFlight && Number.isFinite(lastLandingAtMs) && nowMs - lastLandingAtMs >= OPERATION_INACTIVITY_MS) {
-      if (finalizeOperation(operation, state, lastLandingAtMs, 'inactivity_after_landing')) changed = true;
+      if (finalizeOperation(operation, state, nowMs, 'inactivity_after_landing')) changed = true;
       continue;
     }
     const lastTelemetryAtMs = Number(state.lastTelemetryAt);
@@ -197,6 +241,7 @@ function processTelemetryForOperations({
       changed = true;
       if (updateOperationHectares(currentOperation, state, hectaresApplied)) changed = true;
     }
+    if (addPauseDuration(currentOperation, state, telemetryAtMs)) changed = true;
     currentOperation.totalFlights += 1;
     currentOperation.lastTelemetryAt = new Date(telemetryAtMs).toISOString();
     state.inFlight = true;
@@ -207,6 +252,7 @@ function processTelemetryForOperations({
   if (isFlightEndSignal && state.inFlight) {
     state.inFlight = false;
     state.lastLandingAt = telemetryAtMs;
+    state.pauseStartedAt = telemetryAtMs;
     currentOperation = getOperationById(operations, state.currentOperationId);
     if (currentOperation) {
       currentOperation.lastLandingAt = new Date(telemetryAtMs).toISOString();
@@ -233,12 +279,25 @@ function getOperationDurationMs(operation, nowMs = Date.now()) {
   return Math.max(0, nowMs - Date.parse(operation.startedAt));
 }
 
-function serializeOperation(operation, nowMs = Date.now()) {
+function serializeOperation(operation, operationStates = null, nowMs = Date.now()) {
   const durationMs = getOperationDurationMs(operation, nowMs);
+  const operationState = getOperationState(operationStates, operation);
+  const totalPausedMs = getOperationPausedMs(operation, operationState, nowMs);
+  const totalEffectiveFlightMs = Math.max(0, durationMs - totalPausedMs);
+  const averagePauseMs = getAveragePauseMs(totalPausedMs, operation.totalFlights);
   return {
     ...operation,
+    totalOperationMs: durationMs,
+    totalOperationLabel: formatDuration(durationMs),
     durationMs,
     durationLabel: formatDuration(durationMs),
+    totalPausedMs,
+    totalPausedLabel: formatDuration(totalPausedMs),
+    totalEffectiveFlightMs,
+    totalEffectiveFlightLabel: formatDuration(totalEffectiveFlightMs),
+    averagePauseMs: averagePauseMs === null ? 0 : averagePauseMs,
+    averagePauseLabel: averagePauseMs === null ? '--' : formatDuration(averagePauseMs),
+    pauseIntervalsCount: getPauseIntervalsCount(operation),
     hectaresWorked: round(operation.hectaresWorked || 0, 2)
   };
 }
@@ -252,39 +311,56 @@ function filterOperations(operations, { companyId = null, dateKey = null, droneF
   });
 }
 
-function buildDaySummary(operations, nowMs = Date.now()) {
+function buildDaySummary(operations, operationStates = null, nowMs = Date.now()) {
   if (!operations.length) {
     return {
       operationsCount: 0,
       totalFlights: 0,
       totalOperationMs: 0,
-      totalOperationLabel: '0min',
+      totalOperationLabel: '00:00:00',
+      totalPausedMs: 0,
+      totalPausedLabel: '00:00:00',
+      totalEffectiveFlightMs: 0,
+      totalEffectiveFlightLabel: '00:00:00',
+      averagePauseMs: 0,
+      averagePauseLabel: '--',
       totalHectares: 0,
       lastOperationAt: null,
       lastOperationLabel: null
     };
   }
-  const totalOperationMs = operations.reduce((sum, operation) => sum + getOperationDurationMs(operation, nowMs), 0);
-  const totalFlights = operations.reduce((sum, operation) => sum + (operation.totalFlights || 0), 0);
-  const totalHectares = round(operations.reduce((sum, operation) => sum + (operation.hectaresWorked || 0), 0), 2);
+  const serializedOperations = operations.map((operation) => serializeOperation(operation, operationStates, nowMs));
+  const totalOperationMs = serializedOperations.reduce((sum, operation) => sum + (operation.totalOperationMs || 0), 0);
+  const totalPausedMs = serializedOperations.reduce((sum, operation) => sum + (operation.totalPausedMs || 0), 0);
+  const totalEffectiveFlightMs = serializedOperations.reduce((sum, operation) => sum + (operation.totalEffectiveFlightMs || 0), 0);
+  const totalFlights = serializedOperations.reduce((sum, operation) => sum + (operation.totalFlights || 0), 0);
+  const totalPauseIntervals = serializedOperations.reduce((sum, operation) => sum + (operation.pauseIntervalsCount || 0), 0);
+  const totalHectares = round(serializedOperations.reduce((sum, operation) => sum + (operation.hectaresWorked || 0), 0), 2);
   const sorted = [...operations].sort((left, right) => {
     const leftTime = Date.parse(left.endedAt || left.lastLandingAt || left.lastTelemetryAt || left.startedAt);
     const rightTime = Date.parse(right.endedAt || right.lastLandingAt || right.lastTelemetryAt || right.startedAt);
     return rightTime - leftTime;
   });
   const lastOperationAt = sorted[0]?.endedAt || sorted[0]?.lastLandingAt || sorted[0]?.lastTelemetryAt || sorted[0]?.startedAt || null;
+  const averagePauseMs = totalPauseIntervals > 0 ? totalPausedMs / totalPauseIntervals : null;
   return {
-    operationsCount: operations.length,
+    operationsCount: serializedOperations.length,
     totalFlights,
     totalOperationMs,
     totalOperationLabel: formatDuration(totalOperationMs),
+    totalPausedMs,
+    totalPausedLabel: formatDuration(totalPausedMs),
+    totalEffectiveFlightMs,
+    totalEffectiveFlightLabel: formatDuration(totalEffectiveFlightMs),
+    averagePauseMs: averagePauseMs === null ? 0 : averagePauseMs,
+    averagePauseLabel: averagePauseMs === null ? '--' : formatDuration(averagePauseMs),
     totalHectares,
     lastOperationAt,
     lastOperationLabel: lastOperationAt ? new Date(lastOperationAt).toLocaleString('pt-BR') : null
   };
 }
 
-function listOperationDays(operations, filters = {}, nowMs = Date.now()) {
+function listOperationDays(operations, filters = {}, operationStates = null, nowMs = Date.now()) {
   const filtered = filterOperations(operations, filters);
   const grouped = new Map();
   for (const operation of filtered) {
@@ -296,20 +372,20 @@ function listOperationDays(operations, filters = {}, nowMs = Date.now()) {
     .map(([date, dayOperations]) => ({
       date,
       dateLabel: formatDateKeyToLabel(date),
-      summary: buildDaySummary(dayOperations, nowMs)
+      summary: buildDaySummary(dayOperations, operationStates, nowMs)
     }))
     .sort((left, right) => right.date.localeCompare(left.date));
 }
 
-function buildOperationsResponse(operations, { dateKey, companyId = null, droneFilter = null, nowMs = Date.now() } = {}) {
+function buildOperationsResponse(operations, { dateKey, companyId = null, droneFilter = null, operationStates = null, nowMs = Date.now() } = {}) {
   const filtered = filterOperations(operations, { companyId, dateKey, droneFilter }).sort((left, right) => {
     return Date.parse(left.startedAt) - Date.parse(right.startedAt);
   });
   return {
     date: dateKey,
     dateLabel: dateKey ? formatDateKeyToLabel(dateKey) : null,
-    summary: buildDaySummary(filtered, nowMs),
-    operations: filtered.map((operation) => serializeOperation(operation, nowMs))
+    summary: buildDaySummary(filtered, operationStates, nowMs),
+    operations: filtered.map((operation) => serializeOperation(operation, operationStates, nowMs))
   };
 }
 

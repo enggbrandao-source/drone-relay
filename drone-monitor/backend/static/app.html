@@ -82,6 +82,10 @@
       return esc(value);
     }
 
+    function fmtDuration(value) {
+      return value || '--';
+    }
+
     async function api(path, options = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
       if (state.token) headers.Authorization = 'Bearer ' + state.token;
@@ -210,8 +214,10 @@
           <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div><div class="label">Operações</div><div>${fmt(day.summary.operationsCount, 0)}</div></div>
             <div><div class="label">Voos</div><div>${fmt(day.summary.totalFlights, 0)}</div></div>
-            <div><div class="label">Tempo</div><div>${esc(day.summary.totalOperationLabel || '--')}</div></div>
+            <div><div class="label">Tempo total</div><div>${esc(day.summary.totalOperationLabel || '--')}</div></div>
             <div><div class="label">Hectares</div><div>${fmt(day.summary.totalHectares, 2)} ha</div></div>
+            <div><div class="label">Tempo pausado</div><div>${fmtDuration(day.summary.totalPausedLabel)}</div></div>
+            <div><div class="label">Média pausa</div><div>${fmtDuration(day.summary.averagePauseLabel)}</div></div>
           </div>
         </button>
       `).join('');
@@ -221,7 +227,7 @@
         detail = `
           <div class="panel">
             <div style="font-size:20px;font-weight:800;margin-bottom:6px">${esc(state.selectedDay.dateLabel || state.selectedDate)}</div>
-            <div class="muted">Operações: ${fmt(state.selectedDay.summary.operationsCount, 0)} | Voos: ${fmt(state.selectedDay.summary.totalFlights, 0)} | Tempo: ${esc(state.selectedDay.summary.totalOperationLabel || '--')} | Hectares: ${fmt(state.selectedDay.summary.totalHectares, 2)} ha</div>
+            <div class="muted">Operações: ${fmt(state.selectedDay.summary.operationsCount, 0)} | Voos: ${fmt(state.selectedDay.summary.totalFlights, 0)} | Tempo total: ${fmtDuration(state.selectedDay.summary.totalOperationLabel)} | Voo efetivo: ${fmtDuration(state.selectedDay.summary.totalEffectiveFlightLabel)} | Pausa: ${fmtDuration(state.selectedDay.summary.totalPausedLabel)} | Média pausa: ${fmtDuration(state.selectedDay.summary.averagePauseLabel)} | Hectares: ${fmt(state.selectedDay.summary.totalHectares, 2)} ha</div>
             <div class="ops-list">
               ${state.selectedDay.operations.map((operation, index) => `
                 <div class="op-card">
@@ -232,7 +238,10 @@
                   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
                     <div><div class="label">Início</div><div>${new Date(operation.startedAt).toLocaleTimeString('pt-BR')}</div></div>
                     <div><div class="label">Fim</div><div>${operation.endedAt ? new Date(operation.endedAt).toLocaleTimeString('pt-BR') : '--'}</div></div>
-                    <div><div class="label">Duração</div><div>${esc(operation.durationLabel)}</div></div>
+                    <div><div class="label">Tempo total</div><div>${fmtDuration(operation.totalOperationLabel)}</div></div>
+                    <div><div class="label">Voo efetivo</div><div>${fmtDuration(operation.totalEffectiveFlightLabel)}</div></div>
+                    <div><div class="label">Tempo pausado</div><div>${fmtDuration(operation.totalPausedLabel)}</div></div>
+                    <div><div class="label">Média pausa</div><div>${fmtDuration(operation.averagePauseLabel)}</div></div>
                     <div><div class="label">Voos</div><div>${fmt(operation.totalFlights, 0)}</div></div>
                     <div><div class="label">Hectares</div><div>${fmt(operation.hectaresWorked, 2)} ha</div></div>
                     <div><div class="label">Piloto / Fazenda</div><div>${esc(operation.pilotName || '--')} / ${esc(operation.farmName || '--')}</div></div>
@@ -328,7 +337,10 @@
                   <th>Status</th>
                   <th>Início</th>
                   <th>Fim</th>
-                  <th>Duração</th>
+                  <th>Tempo total</th>
+                  <th>Voo efetivo</th>
+                  <th>Tempo pausado</th>
+                  <th>Média pausa</th>
                   <th>Voos</th>
                   <th>Hectares</th>
                   <th>Piloto</th>
@@ -343,14 +355,17 @@
                     <td><span class="pill ${operation.status === 'OPEN' ? 'warn' : 'online'}">${operation.status === 'OPEN' ? 'EM ANDAMENTO' : 'ENCERRADA'}</span></td>
                     <td>${new Date(operation.startedAt).toLocaleString('pt-BR')}</td>
                     <td>${operation.endedAt ? new Date(operation.endedAt).toLocaleString('pt-BR') : '--'}</td>
-                    <td>${esc(operation.durationLabel)}</td>
+                    <td>${fmtDuration(operation.totalOperationLabel)}</td>
+                    <td>${fmtDuration(operation.totalEffectiveFlightLabel)}</td>
+                    <td>${fmtDuration(operation.totalPausedLabel)}</td>
+                    <td>${fmtDuration(operation.averagePauseLabel)}</td>
                     <td>${fmt(operation.totalFlights, 0)}</td>
                     <td>${fmt(operation.hectaresWorked, 2)} ha</td>
                     <td>${esc(operation.pilotName || '--')}</td>
                     <td>${esc(operation.farmName || '--')}</td>
                     <td>${esc(operation.closeReason || '--')}</td>
                   </tr>
-                `).join('') : '<tr><td colspan="10" class="muted">Nenhuma operação encontrada para os filtros atuais.</td></tr>'}
+                `).join('') : '<tr><td colspan="14" class="muted">Nenhuma operação encontrada para os filtros atuais.</td></tr>'}
               </tbody>
             </table>
           </div>

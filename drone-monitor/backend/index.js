@@ -135,7 +135,10 @@ function buildOperationsCsv(operations) {
     'closeReason',
     'startedAt',
     'endedAt',
-    'durationLabel',
+    'totalOperation',
+    'totalEffectiveFlight',
+    'totalPaused',
+    'averagePauseBetweenFlights',
     'totalFlights',
     'hectaresWorked',
     'pilotName',
@@ -151,7 +154,10 @@ function buildOperationsCsv(operations) {
     operation.closeReason || '',
     operation.startedAt,
     operation.endedAt || '',
-    operation.durationLabel || '',
+    operation.totalOperationLabel || operation.durationLabel || '',
+    operation.totalEffectiveFlightLabel || '',
+    operation.totalPausedLabel || '',
+    operation.averagePauseLabel || '',
     operation.totalFlights,
     operation.hectaresWorked,
     operation.pilotName || '',
@@ -646,7 +652,7 @@ const server = http.createServer((req, res) => {
         schedulePersist();
       }
       sendJson(res, 200, {
-        days: listOperationDays(db.operations, { companyId: getOperationsCompanyFilter(req.user) })
+        days: listOperationDays(db.operations, { companyId: getOperationsCompanyFilter(req.user) }, db.operationStates)
       });
     });
     return;
@@ -663,7 +669,8 @@ const server = http.createServer((req, res) => {
       const payload = buildOperationsResponse(db.operations, {
         companyId,
         dateKey,
-        droneFilter
+        droneFilter,
+        operationStates: db.operationStates
       });
       res.writeHead(200, {
         'Content-Type': 'text/csv; charset=utf-8',
@@ -683,7 +690,8 @@ const server = http.createServer((req, res) => {
       }
       const payload = buildOperationsResponse(db.operations, {
         companyId: getOperationsCompanyFilter(req.user),
-        dateKey
+        dateKey,
+        operationStates: db.operationStates
       });
       sendJson(res, 200, payload.summary);
     });
@@ -701,7 +709,8 @@ const server = http.createServer((req, res) => {
       sendJson(res, 200, buildOperationsResponse(db.operations, {
         companyId: getOperationsCompanyFilter(req.user),
         dateKey,
-        droneFilter
+        droneFilter,
+        operationStates: db.operationStates
       }));
     });
     return;
@@ -716,7 +725,8 @@ const server = http.createServer((req, res) => {
       }
       sendJson(res, 200, buildOperationsResponse(db.operations, {
         companyId: getOperationsCompanyFilter(req.user),
-        dateKey
+        dateKey,
+        operationStates: db.operationStates
       }));
     });
     return;

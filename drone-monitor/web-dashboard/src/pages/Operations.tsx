@@ -11,6 +11,10 @@ function fmt(value: any, digits = 0) {
   return String(value);
 }
 
+function fmtDuration(value?: string | null) {
+  return value || '--';
+}
+
 export default function Operations({ apiUrl, token }: Props) {
   const [days, setDays] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
@@ -141,7 +145,7 @@ export default function Operations({ apiUrl, token }: Props) {
           <div className="rounded-xl border border-white/10 bg-white/5 p-5">
             <h3 className="text-lg font-bold">{selectedDay.dateLabel}</h3>
             <div className="mt-2 text-sm text-gray-400">
-              Operações: {selectedDay.summary.operationsCount} | Voos: {selectedDay.summary.totalFlights} | Tempo: {selectedDay.summary.totalOperationLabel} | Hectares: {fmt(selectedDay.summary.totalHectares, 2)} ha
+              Operações: {selectedDay.summary.operationsCount} | Voos: {selectedDay.summary.totalFlights} | Tempo total: {fmtDuration(selectedDay.summary.totalOperationLabel)} | Voo efetivo: {fmtDuration(selectedDay.summary.totalEffectiveFlightLabel)} | Pausa: {fmtDuration(selectedDay.summary.totalPausedLabel)} | Média pausa: {fmtDuration(selectedDay.summary.averagePauseLabel)} | Hectares: {fmt(selectedDay.summary.totalHectares, 2)} ha
             </div>
           </div>
 
@@ -153,7 +157,10 @@ export default function Operations({ apiUrl, token }: Props) {
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-left">Início</th>
                   <th className="px-4 py-3 text-left">Fim</th>
-                  <th className="px-4 py-3 text-left">Duração</th>
+                  <th className="px-4 py-3 text-left">Tempo total</th>
+                  <th className="px-4 py-3 text-left">Voo efetivo</th>
+                  <th className="px-4 py-3 text-left">Tempo pausado</th>
+                  <th className="px-4 py-3 text-left">Média pausa</th>
                   <th className="px-4 py-3 text-left">Voos</th>
                   <th className="px-4 py-3 text-left">Hectares</th>
                   <th className="px-4 py-3 text-left">Piloto</th>
@@ -172,7 +179,10 @@ export default function Operations({ apiUrl, token }: Props) {
                     </td>
                     <td className="px-4 py-3">{new Date(operation.startedAt).toLocaleString('pt-BR')}</td>
                     <td className="px-4 py-3">{operation.endedAt ? new Date(operation.endedAt).toLocaleString('pt-BR') : '--'}</td>
-                    <td className="px-4 py-3">{operation.durationLabel}</td>
+                    <td className="px-4 py-3">{fmtDuration(operation.totalOperationLabel)}</td>
+                    <td className="px-4 py-3">{fmtDuration(operation.totalEffectiveFlightLabel)}</td>
+                    <td className="px-4 py-3">{fmtDuration(operation.totalPausedLabel)}</td>
+                    <td className="px-4 py-3">{fmtDuration(operation.averagePauseLabel)}</td>
                     <td className="px-4 py-3">{operation.totalFlights}</td>
                     <td className="px-4 py-3">{fmt(operation.hectaresWorked, 2)} ha</td>
                     <td className="px-4 py-3">{operation.pilotName || '--'}</td>
@@ -181,7 +191,7 @@ export default function Operations({ apiUrl, token }: Props) {
                   </tr>
                 )) : (
                   <tr>
-                    <td className="px-4 py-6 text-gray-500" colSpan={10}>
+                    <td className="px-4 py-6 text-gray-500" colSpan={14}>
                       Nenhuma operação encontrada para os filtros atuais.
                     </td>
                   </tr>

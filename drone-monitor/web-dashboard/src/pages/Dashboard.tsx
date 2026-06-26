@@ -23,6 +23,10 @@ function fmt(v: any, rnd: number) {
   return v;
 }
 
+function fmtDuration(value?: string | null) {
+  return value || '--';
+}
+
 export default function Dashboard({ apiUrl, token }: Props) {
   const [drones, setDrones] = useState<Record<string, any>>({});
   const [filter, setFilter] = useState('all');
@@ -165,6 +169,14 @@ export default function Dashboard({ apiUrl, token }: Props) {
                       <div className="font-semibold">{fmt(day.summary.totalHectares, 2)} ha</div>
                     </div>
                     <div>
+                      <div className="text-gray-500">Tempo pausado</div>
+                      <div className="font-semibold text-xs">{fmtDuration(day.summary.totalPausedLabel)}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Tempo médio de pausa</div>
+                      <div className="font-semibold text-xs">{fmtDuration(day.summary.averagePauseLabel)}</div>
+                    </div>
+                    <div className="col-span-2">
                       <div className="text-gray-500">Última operação</div>
                       <div className="font-semibold text-xs">{day.summary.lastOperationLabel || '—'}</div>
                     </div>
@@ -179,7 +191,7 @@ export default function Dashboard({ apiUrl, token }: Props) {
                   <div>
                     <h4 className="text-lg font-bold">{selectedDay.dateLabel}</h4>
                     <div className="text-sm text-gray-400">
-                      {selectedDay.summary.operationsCount} operações | {selectedDay.summary.totalFlights} voos | {selectedDay.summary.totalOperationLabel} | {fmt(selectedDay.summary.totalHectares, 2)} ha
+                      {selectedDay.summary.operationsCount} operações | {selectedDay.summary.totalFlights} voos | Operação: {selectedDay.summary.totalOperationLabel} | Voo efetivo: {selectedDay.summary.totalEffectiveFlightLabel} | Pausa: {selectedDay.summary.totalPausedLabel} | Média pausa: {selectedDay.summary.averagePauseLabel} | {fmt(selectedDay.summary.totalHectares, 2)} ha
                     </div>
                   </div>
                 </div>
@@ -195,7 +207,7 @@ export default function Dashboard({ apiUrl, token }: Props) {
                           {operation.status === 'OPEN' ? 'EM ANDAMENTO' : 'ENCERRADA'}
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3 xl:grid-cols-6">
+                      <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3 xl:grid-cols-8">
                         <div>
                           <div className="text-gray-500">Início</div>
                           <div>{new Date(operation.startedAt).toLocaleTimeString('pt-BR')}</div>
@@ -205,8 +217,20 @@ export default function Dashboard({ apiUrl, token }: Props) {
                           <div>{operation.endedAt ? new Date(operation.endedAt).toLocaleTimeString('pt-BR') : '—'}</div>
                         </div>
                         <div>
-                          <div className="text-gray-500">Duração</div>
-                          <div>{operation.durationLabel}</div>
+                          <div className="text-gray-500">Tempo total</div>
+                          <div>{operation.totalOperationLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Voo efetivo</div>
+                          <div>{operation.totalEffectiveFlightLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Tempo pausado</div>
+                          <div>{operation.totalPausedLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Média pausa</div>
+                          <div>{operation.averagePauseLabel}</div>
                         </div>
                         <div>
                           <div className="text-gray-500">Voos</div>
