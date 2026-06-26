@@ -62,6 +62,8 @@
 <body>
   <div id="app" class="page"></div>
   <script>
+    const APP_STATE_KEY = 'agryon_app_state';
+
     const state = {
       token: localStorage.getItem('agryon_token'),
       user: JSON.parse(localStorage.getItem('agryon_user') || 'null'),
@@ -76,6 +78,32 @@
       reportData: null,
       reportDroneId: ''
     };
+
+    function persistUiState() {
+      try {
+        localStorage.setItem(APP_STATE_KEY, JSON.stringify({
+          view: state.view,
+          filter: state.filter,
+          selectedDate: state.selectedDate,
+          dateFrom: state.dateFrom,
+          dateTo: state.dateTo,
+          reportDroneId: state.reportDroneId
+        }));
+      } catch {}
+    }
+
+    function restoreUiState() {
+      try {
+        const savedState = JSON.parse(localStorage.getItem(APP_STATE_KEY) || 'null');
+        if (!savedState || typeof savedState !== 'object') return;
+        if (savedState.view) state.view = savedState.view;
+        if (savedState.filter) state.filter = savedState.filter;
+        if (typeof savedState.selectedDate === 'string') state.selectedDate = savedState.selectedDate;
+        if (typeof savedState.dateFrom === 'string') state.dateFrom = savedState.dateFrom;
+        if (typeof savedState.dateTo === 'string') state.dateTo = savedState.dateTo;
+        if (typeof savedState.reportDroneId === 'string') state.reportDroneId = savedState.reportDroneId;
+      } catch {}
+    }
 
     function esc(value) {
       return String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[char]));
@@ -138,23 +166,33 @@
       state.user = null;
       localStorage.removeItem('agryon_token');
       localStorage.removeItem('agryon_user');
+      localStorage.removeItem(APP_STATE_KEY);
       render();
     }
 
     function setView(view) {
       state.view = view;
+      persistUiState();
       render();
     }
 
     function setFilter(filter) {
       state.filter = filter;
+      persistUiState();
       render();
     }
 
     async function selectOperationDay(date) {
       state.selectedDate = date;
       await loadOperationDay();
+      persistUiState();
       render();
+    }
+
+    function openMap(event) {
+      if (event) event.preventDefault();
+      persistUiState();
+      window.location.href = '/map';
     }
 
     async function loadOperationDay() {
@@ -204,6 +242,7 @@
 
       state.dateFrom = toLocalDateInputValue(start);
       state.dateTo = toLocalDateInputValue(end);
+      persistUiState();
       render();
     }
 
@@ -212,6 +251,7 @@
       state.dateTo = '';
       state.reportDroneId = '';
       await loadReportData();
+      persistUiState();
       render();
     }
 
@@ -242,6 +282,7 @@
       }
       await loadOperationDay();
       await loadReportData();
+      persistUiState();
       render();
     }
 
@@ -250,6 +291,7 @@
       state.dateFrom = document.getElementById('reportDateFrom').value;
       state.dateTo = document.getElementById('reportDateTo').value;
       state.reportDroneId = document.getElementById('reportDroneId').value.trim();
+      persistUiState();
       if (hasDateRangeError()) {
         render();
         return;
@@ -506,7 +548,7 @@
             <button class="logout" onclick="logout()">Sair</button>
           </div>
         </div>
-        <div style="margin-bottom:12px"><a href="/map" class="btn" style="text-decoration:none;display:inline-block">Abrir mapa</a></div>
+        <div style="margin-bottom:12px"><a href="/map" class="btn" style="text-decoration:none;display:inline-block" onclick="openMap(event)">Abrir mapa</a></div>
         <div class="toolbar">
           <button class="${state.view === 'dashboard' ? 'active' : ''}" onclick="setView('dashboard')">Dashboard</button>
           <button class="${state.view === 'operations' ? 'active' : ''}" onclick="setView('operations')">Operações</button>
@@ -524,6 +566,7 @@
       renderApp();
     }
 
+    restoreUiState();
     render();
     if (state.token) {
       loadAll();
