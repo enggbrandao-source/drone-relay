@@ -45,7 +45,9 @@
     .ops-list{display:grid;gap:12px;margin-top:12px}
     .op-card{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}
     .report-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-    .report-filters{display:grid;grid-template-columns:1fr 1fr auto;gap:10px}
+    .report-filters-top,.report-filters-bottom{display:grid;gap:10px}
+    .report-filters-top{grid-template-columns:1fr 1fr auto}
+    .report-filters-bottom{grid-template-columns:2fr auto;margin-top:10px}
     .table-wrap{overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
     .table{width:100%;border-collapse:collapse;background:rgba(0,0,0,.15)}
     .table th,.table td{padding:12px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;font-size:13px}
@@ -53,7 +55,7 @@
     .pill{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}
     @media (max-width: 900px){
       .page{padding:16px}
-      .report-filters{grid-template-columns:1fr}
+      .report-filters-top,.report-filters-bottom{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -71,6 +73,7 @@
       dateFrom: '',
       dateTo: '',
       selectedDay: null,
+      reportData: null,
       reportDroneId: ''
     };
 
@@ -158,6 +161,26 @@
       state.selectedDay = await api(path);
     }
 
+    function openNativePicker(inputId) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (typeof input.showPicker === 'function') input.showPicker();
+    }
+
+    function preventManualDateInput(event) {
+      event.preventDefault();
+      return false;
+    }
+
+    async function loadReportData() {
+      if (!state.token) return;
+      const params = new URLSearchParams();
+      if (state.dateFrom) params.set('dateFrom', state.dateFrom);
+      if (state.dateTo) params.set('dateTo', state.dateTo);
+      if (state.reportDroneId) params.set('droneId', state.reportDroneId);
+      state.reportData = await api(`/operations/report${params.toString() ? `?${params.toString()}` : ''}`);
+    }
+
     async function loadAll() {
       if (!state.token) return;
       const operationsParams = new URLSearchParams();
@@ -175,6 +198,7 @@
         state.selectedDate = state.operationDays[0]?.date || '';
       }
       await loadOperationDay();
+      await loadReportData();
       render();
     }
 
@@ -183,16 +207,13 @@
       state.dateFrom = document.getElementById('reportDateFrom').value;
       state.dateTo = document.getElementById('reportDateTo').value;
       state.reportDroneId = document.getElementById('reportDroneId').value.trim();
-      state.selectedDate = document.getElementById('reportDate').value;
-      await loadAll();
-      await loadOperationDay();
+      await loadReportData();
       render();
     }
 
     async function exportCsv() {
       if (!state.token) return;
       const params = new URLSearchParams();
-      if (state.selectedDate) params.set('date', state.selectedDate);
       if (state.dateFrom) params.set('dateFrom', state.dateFrom);
       if (state.dateTo) params.set('dateTo', state.dateTo);
       if (state.reportDroneId) params.set('droneId', state.reportDroneId);
@@ -207,7 +228,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `operations-${state.selectedDate || state.dateFrom || 'all'}${state.dateTo ? `-${state.dateTo}` : ''}.csv`;
+      link.download = `operations-${state.dateFrom || 'all'}${state.dateTo ? `-${state.dateTo}` : ''}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -324,26 +345,26 @@
     }
 
     function getReportView() {
-      const rows = state.selectedDay?.operations || [];
+      const rows = state.reportData?.operations || [];
       return `
         <div class="panel">
           <div class="report-header">
             <div>
               <div style="font-size:20px;font-weight:800">Relatório Detalhado de Operações</div>
-              <div class="muted">Exporte os dados filtrados em CSV, com intervalo de datas e seleção rápida por clique.</div>
+              <div class="muted">Escolha apenas Data Inicial e Data Final pelo calendário nativo, sem digitação manual.</div>
             </div>
-            <button class="btn" onclick="exportCsv()">Exportar CSV</button>
           </div>
-          <form class="report-filters" onsubmit="applyReportFilters(event)">
-            <input id="reportDateFrom" type="date" class="select" value="${esc(state.dateFrom || '')}" max="${esc(state.dateTo || '')}" list="operation-days">
-            <input id="reportDateTo" type="date" class="select" value="${esc(state.dateTo || '')}" min="${esc(state.dateFrom || '')}" list="operation-days">
-            <input id="reportDate" type="date" class="select" value="${esc(state.selectedDate || '')}" list="operation-days">
-            <input id="reportDroneId" class="select" value="${esc(state.reportDroneId || '')}" placeholder="Código do drone (opcional)">
-            <button class="btn secondary" type="submit">Aplicar filtros</button>
+          <form onsubmit="applyReportFilters(event)">
+            <div class="report-filters-top">
+              <input id="reportDateFrom" type="date" class="select" value="${esc(state.dateFrom || '')}" max="${esc(state.dateTo || '')}" inputmode="none" onclick="openNativePicker('reportDateFrom')" onfocus="openNativePicker('reportDateFrom')" onkeydown="return preventManualDateInput(event)" onpaste="return preventManualDateInput(event)" ondrop="return preventManualDateInput(event)">
+              <input id="reportDateTo" type="date" class="select" value="${esc(state.dateTo || '')}" min="${esc(state.dateFrom || '')}" inputmode="none" onclick="openNativePicker('reportDateTo')" onfocus="openNativePicker('reportDateTo')" onkeydown="return preventManualDateInput(event)" onpaste="return preventManualDateInput(event)" ondrop="return preventManualDateInput(event)">
+              <button class="btn" type="button" onclick="exportCsv()">Exportar CSV</button>
+            </div>
+            <div class="report-filters-bottom">
+              <input id="reportDroneId" class="select" value="${esc(state.reportDroneId || '')}" placeholder="Código do drone (opcional)">
+              <button class="btn secondary" type="submit">Aplicar filtros</button>
+            </div>
           </form>
-          <datalist id="operation-days">
-            ${state.operationDays.map((day) => `<option value="${esc(day.date)}"></option>`).join('')}
-          </datalist>
           <div class="table-wrap">
             <table class="table">
               <thead>

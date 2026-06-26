@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Props {
   apiUrl: string;
@@ -16,69 +16,52 @@ function fmtDuration(value?: string | null) {
 }
 
 export default function Operations({ apiUrl, token }: Props) {
-  const [days, setDays] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [selectedDay, setSelectedDay] = useState<any | null>(null);
   const [droneId, setDroneId] = useState('');
+  const [reportData, setReportData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
-    async function loadDays() {
-      try {
-        const params = new URLSearchParams();
-        if (dateFrom) params.set('dateFrom', dateFrom);
-        if (dateTo) params.set('dateTo', dateTo);
-        const response = await fetch(`${apiUrl}/operations${params.toString() ? `?${params.toString()}` : ''}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        const nextDays = data.days || [];
-        setDays(nextDays);
-        setSelectedDate((current) => {
-          if (current && nextDays.some((day: any) => day.date === current)) return current;
-          return nextDays[0]?.date || '';
-        });
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadDays();
-  }, [apiUrl, token, dateFrom, dateTo]);
+    loadReport(true);
+  }, [apiUrl, token]);
 
-  useEffect(() => {
-    if (!selectedDate) {
-      setSelectedDay(null);
-      return;
-    }
-    async function loadDetail() {
-      setDetailLoading(true);
-      try {
-        const suffix = droneId.trim()
-          ? `/operations/${encodeURIComponent(selectedDate)}/${encodeURIComponent(droneId.trim())}`
-          : `/operations/${encodeURIComponent(selectedDate)}`;
-        const response = await fetch(`${apiUrl}${suffix}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          setSelectedDay(await response.json());
-        }
-      } finally {
-        setDetailLoading(false);
-      }
-    }
-    loadDetail();
-  }, [apiUrl, selectedDate, droneId, token]);
+  function openNativePicker(event: React.MouseEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>) {
+    const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
+    input.showPicker?.();
+  }
 
-  const canExport = useMemo(() => Boolean(selectedDate || dateFrom || dateTo), [selectedDate, dateFrom, dateTo]);
+  function preventManualDateInput(
+    event: React.KeyboardEvent<HTMLInputElement> | React.ClipboardEvent<HTMLInputElement> | React.DragEvent<HTMLInputElement>
+  ) {
+    event.preventDefault();
+  }
+
+  async function loadReport(isInitialLoad = false) {
+    if (!isInitialLoad) setDetailLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      if (droneId.trim()) params.set('droneId', droneId.trim());
+      const response = await fetch(`${apiUrl}/operations/report${params.toString() ? `?${params.toString()}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setReportData(await response.json());
+      }
+    } finally {
+      setLoading(false);
+      setDetailLoading(false);
+    }
+  }
+
+  const canExport = Boolean(dateFrom || dateTo || droneId.trim() || reportData?.operations?.length);
 
   async function exportCsv() {
-    if (!selectedDate && !dateFrom && !dateTo) return;
+    if (!canExport) return;
     const params = new URLSearchParams();
-    if (selectedDate) params.set('date', selectedDate);
     if (dateFrom) params.set('dateFrom', dateFrom);
     if (dateTo) params.set('dateTo', dateTo);
     if (droneId.trim()) params.set('droneId', droneId.trim());
@@ -92,7 +75,7 @@ export default function Operations({ apiUrl, token }: Props) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `operations-${selectedDate || dateFrom || 'all'}${dateTo ? `-${dateTo}` : ''}${droneId.trim() ? `-${droneId.trim()}` : ''}.csv`;
+    link.download = `operations-${dateFrom || 'all'}${dateTo ? `-${dateTo}` : ''}${droneId.trim() ? `-${droneId.trim()}` : ''}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -108,7 +91,7 @@ export default function Operations({ apiUrl, token }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Relatório de Operações</h2>
-          <p className="text-sm text-gray-400">Visualize as operações do dia, use intervalo de datas e exporte os dados em CSV.</p>
+          <p className="text-sm text-gray-400">Filtre por intervalo de datas usando apenas o calendário nativo e exporte os dados em CSV.</p>
         </div>
         <button
           onClick={exportCsv}
@@ -119,8 +102,14 @@ export default function Operations({ apiUrl, token }: Props) {
         </button>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void loadReport();
+        }}
+        className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4"
+      >
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr_auto]">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Data inicial</label>
             <input
@@ -128,7 +117,12 @@ export default function Operations({ apiUrl, token }: Props) {
               value={dateFrom}
               max={dateTo || undefined}
               onChange={(event) => setDateFrom(event.target.value)}
-              list="operation-days"
+              onClick={openNativePicker}
+              onFocus={openNativePicker}
+              onKeyDown={preventManualDateInput}
+              onPaste={preventManualDateInput}
+              onDrop={preventManualDateInput}
+              inputMode="none"
               className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
             />
           </div>
@@ -139,20 +133,28 @@ export default function Operations({ apiUrl, token }: Props) {
               value={dateTo}
               min={dateFrom || undefined}
               onChange={(event) => setDateTo(event.target.value)}
-              list="operation-days"
+              onClick={openNativePicker}
+              onFocus={openNativePicker}
+              onKeyDown={preventManualDateInput}
+              onPaste={preventManualDateInput}
+              onDrop={preventManualDateInput}
+              inputMode="none"
               className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Dia detalhado</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-              list="operation-days"
-              className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
-            />
+            <label className="block text-sm text-gray-400 mb-2 opacity-0">Exportar CSV</label>
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={!canExport}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold px-4 py-2 rounded-lg transition"
+            >
+              Exportar CSV
+            </button>
           </div>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-[2fr_auto]">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Código do drone</label>
             <input
@@ -162,24 +164,28 @@ export default function Operations({ apiUrl, token }: Props) {
               placeholder="Opcional"
             />
           </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2 opacity-0">Aplicar filtros</label>
+            <button
+              type="submit"
+              className="w-full bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold px-4 py-2 rounded-lg transition"
+            >
+              Aplicar filtros
+            </button>
+          </div>
         </div>
-        <datalist id="operation-days">
-          {days.map((day) => (
-            <option key={day.date} value={day.date} />
-          ))}
-        </datalist>
-      </div>
+      </form>
 
       {detailLoading ? (
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-gray-500">
           Carregando detalhamento...
         </div>
-      ) : selectedDay ? (
+      ) : reportData ? (
         <>
           <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-            <h3 className="text-lg font-bold">{selectedDay.rangeLabel || selectedDay.dateLabel}</h3>
+            <h3 className="text-lg font-bold">{reportData.rangeLabel || 'Período selecionado'}</h3>
             <div className="mt-2 text-sm text-gray-400">
-              Operações: {selectedDay.summary.operationsCount} | Voos: {selectedDay.summary.totalFlights} | Tempo total: {fmtDuration(selectedDay.summary.totalOperationLabel)} | Voo efetivo: {fmtDuration(selectedDay.summary.totalEffectiveFlightLabel)} | Pausa: {fmtDuration(selectedDay.summary.totalPausedLabel)} | Média pausa: {fmtDuration(selectedDay.summary.averagePauseLabel)} | Hectares: {fmt(selectedDay.summary.totalHectares, 2)} ha
+              Operações: {reportData.summary.operationsCount} | Voos: {reportData.summary.totalFlights} | Tempo total: {fmtDuration(reportData.summary.totalOperationLabel)} | Voo efetivo: {fmtDuration(reportData.summary.totalEffectiveFlightLabel)} | Pausa: {fmtDuration(reportData.summary.totalPausedLabel)} | Média pausa: {fmtDuration(reportData.summary.averagePauseLabel)} | Hectares: {fmt(reportData.summary.totalHectares, 2)} ha
             </div>
           </div>
 
@@ -203,7 +209,7 @@ export default function Operations({ apiUrl, token }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {selectedDay.operations.length ? selectedDay.operations.map((operation: any) => (
+                {reportData.operations.length ? reportData.operations.map((operation: any) => (
                   <tr key={operation.id} className="border-t border-white/10">
                     <td className="px-4 py-3">{operation.droneCode}</td>
                     <td className="px-4 py-3">

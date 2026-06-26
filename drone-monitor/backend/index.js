@@ -691,6 +691,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (parsedUrl.pathname === '/operations/report' && req.method === 'GET') {
+    authMiddleware(req, res, () => {
+      const companyId = getOperationsCompanyFilter(req.user);
+      const dateFrom = parsedUrl.query.dateFrom ? normalizeDateParam(parsedUrl.query.dateFrom) : null;
+      const dateTo = parsedUrl.query.dateTo ? normalizeDateParam(parsedUrl.query.dateTo) : null;
+      const droneFilter = parsedUrl.query.droneId ? String(parsedUrl.query.droneId) : null;
+      if (closeInactiveOperations({ operations: db.operations, operationStates: db.operationStates })) {
+        schedulePersist();
+      }
+      sendJson(res, 200, buildOperationsResponse(db.operations, {
+        companyId,
+        dateFrom,
+        dateTo,
+        droneFilter,
+        operationStates: db.operationStates
+      }));
+    });
+    return;
+  }
+
   const operationsSummaryMatch = parsedUrl.pathname.match(/^\/operations\/summary\/([^/]+)$/);
   if (operationsSummaryMatch && req.method === 'GET') {
     authMiddleware(req, res, () => {
