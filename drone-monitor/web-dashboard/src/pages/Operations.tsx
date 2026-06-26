@@ -112,17 +112,12 @@ export default function Operations({ apiUrl, token }: Props) {
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Data</label>
-            <select
+            <input
+              type="date"
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
               className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
-            >
-              {days.map((day) => (
-                <option key={day.date} value={day.date}>
-                  {day.dateLabel} — {day.summary.operationsCount} operações
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-2">Código do drone</label>

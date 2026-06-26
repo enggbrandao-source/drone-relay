@@ -325,7 +325,7 @@
             <button class="btn" onclick="exportCsv()">Exportar CSV</button>
           </div>
           <form class="report-filters" onsubmit="applyReportFilters(event)">
-            <input id="reportDate" class="select" value="${esc(state.selectedDate || '')}" placeholder="YYYY-MM-DD">
+            <input id="reportDate" type="date" class="select" value="${esc(state.selectedDate || '')}">
             <input id="reportDroneId" class="select" value="${esc(state.reportDroneId || '')}" placeholder="Código do drone (opcional)">
             <button class="btn secondary" type="submit">Aplicar filtros</button>
           </form>
