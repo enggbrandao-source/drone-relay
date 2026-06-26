@@ -15,6 +15,13 @@ function fmtDuration(value?: string | null) {
   return value || '--';
 }
 
+function toLocalDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function Operations({ apiUrl, token }: Props) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -57,7 +64,49 @@ export default function Operations({ apiUrl, token }: Props) {
     }
   }
 
-  const canExport = Boolean(dateFrom || dateTo || droneId.trim() || reportData?.operations?.length);
+  const hasDateRangeError = Boolean(dateFrom && dateTo && dateTo < dateFrom);
+  const canExport = !hasDateRangeError && Boolean(dateFrom || dateTo || droneId.trim() || reportData?.operations?.length);
+
+  function applyQuickRange(range: 'today' | 'yesterday' | 'last7' | 'last30') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let start = new Date(today);
+    let end = new Date(today);
+
+    if (range === 'yesterday') {
+      start.setDate(start.getDate() - 1);
+      end = new Date(start);
+    }
+
+    if (range === 'last7') {
+      start.setDate(start.getDate() - 6);
+    }
+
+    if (range === 'last30') {
+      start.setDate(start.getDate() - 29);
+    }
+
+    setDateFrom(toLocalDateInputValue(start));
+    setDateTo(toLocalDateInputValue(end));
+  }
+
+  async function clearFilters() {
+    setDateFrom('');
+    setDateTo('');
+    setDroneId('');
+    setDetailLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/operations/report`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setReportData(await response.json());
+      }
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   async function exportCsv() {
     if (!canExport) return;
@@ -105,10 +154,48 @@ export default function Operations({ apiUrl, token }: Props) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
+          if (hasDateRangeError) return;
           void loadReport();
         }}
         className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4"
       >
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => applyQuickRange('today')}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
+          >
+            Hoje
+          </button>
+          <button
+            type="button"
+            onClick={() => applyQuickRange('yesterday')}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
+          >
+            Ontem
+          </button>
+          <button
+            type="button"
+            onClick={() => applyQuickRange('last7')}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
+          >
+            Últimos 7 dias
+          </button>
+          <button
+            type="button"
+            onClick={() => applyQuickRange('last30')}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
+          >
+            Últimos 30 dias
+          </button>
+          <button
+            type="button"
+            onClick={() => void clearFilters()}
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+          >
+            Limpar filtros
+          </button>
+        </div>
         <div className="grid gap-4 xl:grid-cols-[1fr_1fr_auto]">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Data inicial</label>
@@ -123,7 +210,7 @@ export default function Operations({ apiUrl, token }: Props) {
               onPaste={preventManualDateInput}
               onDrop={preventManualDateInput}
               inputMode="none"
-              className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
+              className={`w-full bg-black/30 rounded-lg px-3 py-2 text-white ${hasDateRangeError ? 'border border-red-500/70 ring-1 ring-red-500/40' : 'border border-white/10'}`}
             />
           </div>
           <div>
@@ -139,7 +226,7 @@ export default function Operations({ apiUrl, token }: Props) {
               onPaste={preventManualDateInput}
               onDrop={preventManualDateInput}
               inputMode="none"
-              className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white"
+              className={`w-full bg-black/30 rounded-lg px-3 py-2 text-white ${hasDateRangeError ? 'border border-red-500/70 ring-1 ring-red-500/40' : 'border border-white/10'}`}
             />
           </div>
           <div>
@@ -168,12 +255,18 @@ export default function Operations({ apiUrl, token }: Props) {
             <label className="block text-sm text-gray-400 mb-2 opacity-0">Aplicar filtros</label>
             <button
               type="submit"
-              className="w-full bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold px-4 py-2 rounded-lg transition"
+              disabled={hasDateRangeError}
+              className="w-full bg-white/10 hover:bg-white/15 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2 rounded-lg transition"
             >
               Aplicar filtros
             </button>
           </div>
         </div>
+        {hasDateRangeError && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            A data final não pode ser anterior à data inicial.
+          </div>
+        )}
       </form>
 
       {detailLoading ? (

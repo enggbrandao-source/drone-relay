@@ -91,6 +91,13 @@
       return value || '--';
     }
 
+    function toLocalDateInputValue(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
     async function api(path, options = {}) {
       const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
       if (state.token) headers.Authorization = 'Bearer ' + state.token;
@@ -172,6 +179,42 @@
       return false;
     }
 
+    function hasDateRangeError() {
+      return Boolean(state.dateFrom && state.dateTo && state.dateTo < state.dateFrom);
+    }
+
+    function applyQuickRange(range) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      let start = new Date(today);
+      let end = new Date(today);
+
+      if (range === 'yesterday') {
+        start.setDate(start.getDate() - 1);
+        end = new Date(start);
+      }
+
+      if (range === 'last7') {
+        start.setDate(start.getDate() - 6);
+      }
+
+      if (range === 'last30') {
+        start.setDate(start.getDate() - 29);
+      }
+
+      state.dateFrom = toLocalDateInputValue(start);
+      state.dateTo = toLocalDateInputValue(end);
+      render();
+    }
+
+    async function clearReportFilters() {
+      state.dateFrom = '';
+      state.dateTo = '';
+      state.reportDroneId = '';
+      await loadReportData();
+      render();
+    }
+
     async function loadReportData() {
       if (!state.token) return;
       const params = new URLSearchParams();
@@ -207,12 +250,17 @@
       state.dateFrom = document.getElementById('reportDateFrom').value;
       state.dateTo = document.getElementById('reportDateTo').value;
       state.reportDroneId = document.getElementById('reportDroneId').value.trim();
+      if (hasDateRangeError()) {
+        render();
+        return;
+      }
       await loadReportData();
       render();
     }
 
     async function exportCsv() {
       if (!state.token) return;
+      if (hasDateRangeError()) return;
       const params = new URLSearchParams();
       if (state.dateFrom) params.set('dateFrom', state.dateFrom);
       if (state.dateTo) params.set('dateTo', state.dateTo);
@@ -346,6 +394,8 @@
 
     function getReportView() {
       const rows = state.reportData?.operations || [];
+      const invalidRange = hasDateRangeError();
+      const dateInputClass = `select${invalidRange ? ' invalid' : ''}`;
       return `
         <div class="panel">
           <div class="report-header">
@@ -355,15 +405,23 @@
             </div>
           </div>
           <form onsubmit="applyReportFilters(event)">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+              <button class="btn secondary" type="button" onclick="applyQuickRange('today')">Hoje</button>
+              <button class="btn secondary" type="button" onclick="applyQuickRange('yesterday')">Ontem</button>
+              <button class="btn secondary" type="button" onclick="applyQuickRange('last7')">Últimos 7 dias</button>
+              <button class="btn secondary" type="button" onclick="applyQuickRange('last30')">Últimos 30 dias</button>
+              <button class="btn secondary" style="border-color:rgba(248,113,113,.35);color:#fca5a5" type="button" onclick="clearReportFilters()">Limpar filtros</button>
+            </div>
             <div class="report-filters-top">
-              <input id="reportDateFrom" type="date" class="select" value="${esc(state.dateFrom || '')}" max="${esc(state.dateTo || '')}" inputmode="none" onclick="openNativePicker('reportDateFrom')" onfocus="openNativePicker('reportDateFrom')" onkeydown="return preventManualDateInput(event)" onpaste="return preventManualDateInput(event)" ondrop="return preventManualDateInput(event)">
-              <input id="reportDateTo" type="date" class="select" value="${esc(state.dateTo || '')}" min="${esc(state.dateFrom || '')}" inputmode="none" onclick="openNativePicker('reportDateTo')" onfocus="openNativePicker('reportDateTo')" onkeydown="return preventManualDateInput(event)" onpaste="return preventManualDateInput(event)" ondrop="return preventManualDateInput(event)">
-              <button class="btn" type="button" onclick="exportCsv()">Exportar CSV</button>
+              <input id="reportDateFrom" type="date" class="${dateInputClass}" value="${esc(state.dateFrom || '')}" max="${esc(state.dateTo || '')}" inputmode="none" onclick="openNativePicker('reportDateFrom')" onfocus="openNativePicker('reportDateFrom')" onkeydown="return preventManualDateInput(event)" onpaste="return preventManualDateInput(event)" ondrop="return preventManualDateInput(event)">
+              <input id="reportDateTo" type="date" class="${dateInputClass}" value="${esc(state.dateTo || '')}" min="${esc(state.dateFrom || '')}" inputmode="none" onclick="openNativePicker('reportDateTo')" onfocus="openNativePicker('reportDateTo')" onkeydown="return preventManualDateInput(event)" onpaste="return preventManualDateInput(event)" ondrop="return preventManualDateInput(event)">
+              <button class="btn" ${invalidRange ? 'disabled' : ''} type="button" onclick="exportCsv()">Exportar CSV</button>
             </div>
             <div class="report-filters-bottom">
               <input id="reportDroneId" class="select" value="${esc(state.reportDroneId || '')}" placeholder="Código do drone (opcional)">
-              <button class="btn secondary" type="submit">Aplicar filtros</button>
+              <button class="btn secondary" ${invalidRange ? 'disabled' : ''} type="submit">Aplicar filtros</button>
             </div>
+            ${invalidRange ? '<div style="margin-top:10px;border:1px solid rgba(248,113,113,.35);background:rgba(248,113,113,.10);color:#fca5a5;padding:10px 12px;border-radius:10px;font-size:13px">A data final não pode ser anterior à data inicial.</div>' : ''}
           </form>
           <div class="table-wrap">
             <table class="table">
