@@ -18,7 +18,8 @@ const defaultIcon = L.icon({
   iconAnchor: [12, 41]
 });
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_MAPS_API_KEY =
+  import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY_WEB || '';
 const FALLBACK_CENTER: [number, number] = [-15.7975, -47.8919];
 
 declare global {

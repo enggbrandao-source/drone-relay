@@ -91,6 +91,7 @@ Após criar o serviço, abra **Environment** no Render e configure:
 |----------|-------------|-----|
 | `JWT_SECRET` | Sim | Assinatura dos tokens do app |
 | `GOOGLE_MAPS_API_KEY` | Sim para Google Hybrid | Ativa as camadas `Google Hybrid` e `Google Satellite` |
+| `VITE_GOOGLE_MAPS_API_KEY` | Sim no web-dashboard React | Ativa Google Hybrid no dashboard React |
 
 Se o `GOOGLE_MAPS_API_KEY` não estiver configurado, o mapa usará `Esri World Imagery` como fallback.
 
