@@ -32,11 +32,11 @@ data class TelemetryData(
         return JSONObject().apply {
             put("ts", timestamp)
             put("id", droneId)
-            speed?.let { put("speed", it); put("_sp_src", sourceMap.speed.name) }
-            altitude?.let { put("altitude", it); put("_alt_src", sourceMap.altitude.name) }
+            speed?.let { put("sp", it); put("_sp_src", sourceMap.speed.name) }
+            altitude?.let { put("alt", it); put("_alt_src", sourceMap.altitude.name) }
             sprayWidth?.let { put("sprayWidth", it); put("_sw_src", sourceMap.sprayWidth.name) }
-            flowRate?.let { put("flowRate", it); put("_fr_src", sourceMap.flowRate.name) }
-            hectaresApplied?.let { put("hectaresApplied", it); put("_ha_src", sourceMap.hectaresApplied.name) }
+            flowRate?.let { put("fr", it); put("_fr_src", sourceMap.flowRate.name) }
+            hectaresApplied?.let { put("ha", it); put("_ha_src", sourceMap.hectaresApplied.name) }
             flightTime?.let { put("flightTime", it); put("_ft_src", sourceMap.flightTime.name) }
             rtkStatus?.let { put("rtkStatus", it); put("_rtk_src", sourceMap.rtkStatus.name) }
             signalStrength?.let { put("signalStrength", it); put("_sig_src", sourceMap.signalStrength.name) }
