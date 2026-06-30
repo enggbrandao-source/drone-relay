@@ -62,6 +62,7 @@ function normalizeTelemetryPayload(payload) {
 const persistedState = loadStore(STORE_FILE);
 const drones = new Map();
 const ipGeoCache = new Map();
+const lastTelemetryPayloads = [];
 
 const db = {
   users: persistedState.users,
@@ -939,12 +940,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (parsedUrl.pathname === '/debug/last-payloads' && req.method === 'GET') {
+    sendJson(res, 200, { payloads: lastTelemetryPayloads, count: lastTelemetryPayloads.length });
+    return;
+  }
+
   if (parsedUrl.pathname === '/drone' && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => body += chunk);
     req.on('end', async () => {
       try {
         const payload = JSON.parse(body);
+        lastTelemetryPayloads.unshift({ ts: Date.now(), body: payload });
+        if (lastTelemetryPayloads.length > 20) lastTelemetryPayloads.pop();
         const droneCode = payload._id || payload.id || 'A001';
         const existingLive = drones.get(droneCode);
         const merged = { ...(existingLive ? existingLive.data : {}), ...normalizeTelemetryPayload(payload) };
