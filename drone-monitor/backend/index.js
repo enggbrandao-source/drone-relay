@@ -44,6 +44,21 @@ const FIELD_MAP = {
   st: 'operationalStatus'
 };
 
+function normalizeTelemetryPayload(payload) {
+  const out = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (key.startsWith('_') && key !== '_id') continue;
+    const mapped = FIELD_MAP[key] || key;
+    out[mapped] = value;
+  }
+  // O APK do DJI SmartFarm envia 'speed' em km/h; o backend legacy esperava m/s.
+  // Se speed vier sem speedKmh, interpretar speed como km/h.
+  if (out.speed != null && out.speedKmh == null) {
+    out.speedKmh = out.speed;
+  }
+  return out;
+}
+
 const persistedState = loadStore(STORE_FILE);
 const drones = new Map();
 const ipGeoCache = new Map();
@@ -932,17 +947,7 @@ const server = http.createServer((req, res) => {
         const payload = JSON.parse(body);
         const droneCode = payload._id || payload.id || 'A001';
         const existingLive = drones.get(droneCode);
-        const merged = { ...(existingLive ? existingLive.data : {}) };
-
-        Object.entries(payload).forEach(([key, value]) => {
-          if (key === '_pilot' || key === '_farm' || key === '_version') {
-            merged[key] = value;
-            return;
-          }
-          if (key.startsWith('_')) return;
-          const mappedKey = FIELD_MAP[key] || key;
-          merged[mappedKey] = value;
-        });
+        const merged = { ...(existingLive ? existingLive.data : {}), ...normalizeTelemetryPayload(payload) };
 
         if (payload.latitude != null) merged.latitude = payload.latitude;
         if (payload.longitude != null) merged.longitude = payload.longitude;
