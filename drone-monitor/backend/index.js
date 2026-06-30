@@ -952,6 +952,22 @@ const server = http.createServer((req, res) => {
         if (merged.flowRate != null) merged.flowRate = Math.round(Number(merged.flowRate) * 10) / 10;
         if (merged.hectaresApplied != null) merged.hectaresApplied = Math.round(Number(merged.hectaresApplied) * 100) / 100;
 
+        const missingOperationalFields = ['speedKmh', 'altitude', 'flowRate', 'hectaresApplied']
+          .filter((field) => merged[field] == null);
+        if (missingOperationalFields.length && (merged.operationalStatus || merged.speed != null || merged.tankLiters != null)) {
+          console.warn('[telemetry-missing-fields]', {
+            droneCode,
+            missingOperationalFields,
+            payloadKeys: Object.keys(payload),
+            operationalStatus: merged.operationalStatus || null,
+            speed: merged.speed ?? null,
+            speedKmh: merged.speedKmh ?? null,
+            altitude: merged.altitude ?? null,
+            flowRate: merged.flowRate ?? null,
+            hectaresApplied: merged.hectaresApplied ?? null
+          });
+        }
+
         if (merged.latitude == null || merged.longitude == null) {
           const clientIp = getClientIp(req);
           const location = await fetchIpLocation(clientIp);

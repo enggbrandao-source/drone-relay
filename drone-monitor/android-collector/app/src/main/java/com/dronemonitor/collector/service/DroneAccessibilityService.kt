@@ -333,24 +333,62 @@ class DroneAccessibilityService : AccessibilityService() {
             try {
                 val nodes = root.findAccessibilityNodeInfosByViewId(resId)
                 if (nodes != null && nodes.isNotEmpty()) {
-                    val node = nodes[0]
-                    val text = node.text?.toString()
-                    val desc = node.contentDescription?.toString()
-                    val value = text ?: desc
-                    if (!value.isNullOrBlank()) {
-                        // Extrai apenas o nome do ID (ultima parte)
-                        val shortId = resId.substringAfterLast("/")
-                        result[shortId] = value
-                        FileLogger.d(TAG, "ID[$shortId] = '$value'")
+                    val shortId = resId.substringAfterLast("/")
+                    val candidates = mutableListOf<String>()
+                    nodes.forEach { node ->
+                        val text = node.text?.toString()?.trim()
+                        val desc = node.contentDescription?.toString()?.trim()
+                        if (!text.isNullOrBlank()) candidates.add(text)
+                        if (!desc.isNullOrBlank() && desc != text) candidates.add(desc)
+                        node.recycle()
                     }
-                    node.recycle()
+                    val value = pickBestResourceValue(shortId, candidates)
+                    if (!value.isNullOrBlank()) {
+                        result[shortId] = value
+                        FileLogger.d(TAG, "ID[$shortId] = '$value' (candidates=${candidates.size})")
+                    }
                 }
-                nodes?.forEach { it.recycle() }
             } catch (e: Exception) {
                 // Ignora erros de ID nao encontrado
             }
         }
         return result
+    }
+
+    private fun pickBestResourceValue(shortId: String, candidates: List<String>): String? {
+        if (candidates.isEmpty()) return null
+
+        val numericIds = setOf(
+            "altitude",
+            "heightValue",
+            "height_value",
+            "speed",
+            "speedValue",
+            "speed_value",
+            "distance_iv",
+            "flowRemain",
+            "flowValue",
+            "flow_speed",
+            "sprayedPesticide",
+            "spray_2_remain_capacity",
+            "batteryRemain",
+            "battery_volume",
+            "satellites",
+            "signal_level_num",
+            "signal",
+            "latitude",
+            "longitude"
+        )
+
+        if (shortId in numericIds) {
+            return candidates.firstOrNull { containsNumericValue(it) } ?: candidates.firstOrNull()
+        }
+
+        return candidates.firstOrNull { it.isNotBlank() }
+    }
+
+    private fun containsNumericValue(value: String): Boolean {
+        return Regex("(-?\\d+[\\.,]?\\d*)").containsMatchIn(value)
     }
 
     companion object {

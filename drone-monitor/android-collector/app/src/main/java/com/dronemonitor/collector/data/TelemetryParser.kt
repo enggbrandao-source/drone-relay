@@ -23,6 +23,12 @@ class TelemetryParser {
         val source: TelemetrySource
     )
 
+    data class ParsedSpeed(
+        val speedMs: Double?,
+        val speedKmh: Double?,
+        val source: TelemetrySource
+    )
+
     fun parseFromTexts(texts: List<String>): TelemetryData {
         // 1. Tenta parser DJI Agras (par label-valor)
         val djiResult = parseDjiAgras(texts)
@@ -57,44 +63,41 @@ class TelemetryParser {
             when (id) {
                 // Altitude
                 "altitude", "heightValue", "height_value" -> {
-                    altitude = value.replace(",", ".").toDoubleOrNull()
+                    altitude = extractNumericValue(value)
                 }
                 // Velocidade
                 "speed", "speedValue", "speed_value" -> {
-                    speedKmh = value.replace(",", ".").toDoubleOrNull()
+                    speedKmh = extractNumericValue(value)
                 }
                 // Distancia
                 "distance_iv" -> {
-                    distance = value.replace(",", ".").toDoubleOrNull()
+                    distance = extractNumericValue(value)
                 }
                 // Fluxo
                 "flowValue", "flow_speed" -> {
-                    flowRate = value.replace(",", ".").toDoubleOrNull()
+                    flowRate = extractNumericValue(value)
                 }
                 // Bateria
                 "batteryRemain", "battery_volume" -> {
-                    // Pode vir como "80%" ou "80"
-                    battery = value.replace("%", "").trim().toIntOrNull()
+                    battery = extractIntegerValue(value)
                 }
                 // Sinal / Satelites
                 "satellites", "signal_level_num", "signal" -> {
-                    signalStrength = value.toIntOrNull()
+                    signalStrength = extractIntegerValue(value)
                 }
                 // Tanque / Spray
                 "flowRemain", "spray_2_remain_capacity" -> {
-                    // Pode vir como "4.90l" ou "4.90"
-                    tankLiters = value.replace("l", "").replace("L", "")
-                        .replace(",", ".").trim().toDoubleOrNull()
+                    tankLiters = extractNumericValue(value)
                 }
                 "sprayedPesticide" -> {
-                    hectares = value.replace(",", ".").toDoubleOrNull()
+                    hectares = extractNumericValue(value)
                 }
                 // Coordenadas GPS
                 "latitude" -> {
-                    latitude = value.replace(",", ".").toDoubleOrNull()
+                    latitude = extractNumericValue(value)
                 }
                 "longitude" -> {
-                    longitude = value.replace(",", ".").toDoubleOrNull()
+                    longitude = extractNumericValue(value)
                 }
                 // Status do drone
                 "droneState" -> {
@@ -134,14 +137,13 @@ class TelemetryParser {
                     // Tentar inferir o que e pelo valor
                     when {
                         value.matches(Regex("^\\d{1,3}%$")) -> {
-                            battery = value.removeSuffix("%").toIntOrNull()
+                            battery = extractIntegerValue(value)
                         }
                         value.matches(Regex("^\\d+[\\.,]\\d+l?$", RegexOption.IGNORE_CASE)) -> {
-                            tankLiters = value.replace("l", "", ignoreCase = true)
-                                .replace(",", ".").trim().toDoubleOrNull()
+                            tankLiters = extractNumericValue(value)
                         }
                         value.matches(Regex("^\\d{1,2}$")) -> {
-                            val n = value.toIntOrNull()
+                            val n = extractIntegerValue(value)
                             if (n != null && n in 5..50) signalStrength = n
                         }
                     }
@@ -394,7 +396,7 @@ class TelemetryParser {
     }
 
     fun parseTelemetry(block: String, texts: List<String>): TelemetryData {
-        val speed = extractDouble(block, SPEED_PATTERNS)
+        val speed = extractSpeed(block)
         val altitude = extractDouble(block, ALTITUDE_PATTERNS)
         val sprayWidth = extractDouble(block, WIDTH_PATTERNS)
         val flowRate = extractDouble(block, FLOW_PATTERNS)
@@ -410,7 +412,7 @@ class TelemetryParser {
         val alerts = extractAlerts(texts)
 
         return TelemetryData(
-            speed = speed.value,
+            speed = speed.speedMs,
             altitude = altitude.value,
             sprayWidth = sprayWidth.value,
             flowRate = flowRate.value,
@@ -420,6 +422,7 @@ class TelemetryParser {
             signalStrength = signalStrength.value,
             batteryPercent = batteryPercent.value,
             tankLevel = tankLevel.value,
+            speedKmh = speed.speedKmh,
             latitude = latitude.value,
             longitude = longitude.value,
             operationalStatus = operationalStatus.value,
@@ -441,6 +444,43 @@ class TelemetryParser {
                 systemAlerts = alerts.source
             )
         )
+    }
+
+    private fun extractSpeed(text: String): ParsedSpeed {
+        val speedPatterns = listOf(
+            Pair(Pattern.compile("Velocidade\\s*\\(km/h\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE), true),
+            Pair(Pattern.compile("Speed\\s*\\(km/h\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE), true),
+            Pair(Pattern.compile("Vel(?:ocidade)?\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*km/h", Pattern.CASE_INSENSITIVE), true),
+            Pair(Pattern.compile("Speed\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*km/h", Pattern.CASE_INSENSITIVE), true),
+            Pair(Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*km/h", Pattern.CASE_INSENSITIVE), true),
+            Pair(Pattern.compile("Velocidade\\s*\\(m/s\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE), false),
+            Pair(Pattern.compile("Speed\\s*\\(m/s\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE), false),
+            Pair(Pattern.compile("Vel(?:ocidade)?\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*m/s", Pattern.CASE_INSENSITIVE), false),
+            Pair(Pattern.compile("Speed\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*m/s", Pattern.CASE_INSENSITIVE), false),
+            Pair(Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*m/s", Pattern.CASE_INSENSITIVE), false)
+        )
+
+        for ((pattern, isKmh) in speedPatterns) {
+            val matcher = pattern.matcher(text)
+            if (matcher.find()) {
+                val rawValue = matcher.group(1)?.replace(",", ".")?.toDoubleOrNull() ?: continue
+                val speedKmh = if (isKmh) rawValue else rawValue * 3.6
+                val speedMs = if (isKmh) rawValue / 3.6 else rawValue
+                return ParsedSpeed(speedMs, speedKmh, TelemetrySource.ACCESSIBILITY)
+            }
+        }
+
+        return ParsedSpeed(null, null, TelemetrySource.UNAVAILABLE)
+    }
+
+    private fun extractNumericValue(value: String): Double? {
+        val normalized = value.replace(",", ".")
+        return Regex("(-?\\d+(?:\\.\\d+)?)").find(normalized)?.groupValues?.get(1)?.toDoubleOrNull()
+    }
+
+    private fun extractIntegerValue(value: String): Int? {
+        val normalized = value.replace("%", "")
+        return Regex("(-?\\d+)").find(normalized)?.groupValues?.get(1)?.toIntOrNull()
     }
 
     private fun extractDouble(text: String, patterns: List<Pattern>): ParsedField<Double> {
@@ -623,6 +663,8 @@ class TelemetryParser {
             Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*km/h")
         )
         private val ALTITUDE_PATTERNS = listOf(
+            Pattern.compile("Altitude\\s*\\(m\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("Altura\\s*\\(m\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE),
             Pattern.compile("Alt(?:itude)?\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*m"),
             Pattern.compile("Alt\\s*:?\\s*([0-9]+[.,]?[0-9]*)"),
             Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*m\\s*AGL"),
@@ -635,12 +677,15 @@ class TelemetryParser {
             Pattern.compile("Spray Width\\s*:?\\s*([0-9]+[.,]?[0-9]*)")
         )
         private val FLOW_PATTERNS = listOf(
+            Pattern.compile("Fluxo\\s*\\(L/Min\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("Vaz(?:a|ã)o\\s*\\(L/Min\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE),
             Pattern.compile("Vaz(?:ao)?\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*(?:L/min|L/m)"),
             Pattern.compile("Flow\\s*:?\\s*([0-9]+[.,]?[0-9]*)"),
             Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*L/min"),
             Pattern.compile("Flow Rate\\s*:?\\s*([0-9]+[.,]?[0-9]*)")
         )
         private val HECTARES_PATTERNS = listOf(
+            Pattern.compile("(?:Área|Area)\\s*\\(Ha\\)\\s*:?\\s*([0-9]+[.,]?[0-9]*)", Pattern.CASE_INSENSITIVE),
             Pattern.compile("Hect(?:ares)?\\s*:?\\s*([0-9]+[.,]?[0-9]*)"),
             Pattern.compile("Area\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*(?:ha|hec)"),
             Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*ha"),
