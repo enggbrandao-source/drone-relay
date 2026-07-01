@@ -439,7 +439,7 @@ const MAP_HTML = `<!DOCTYPE html>
 <script>
 const GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY_JSON};
 const FALLBACK_CENTER=[-14.2,-51.9];
-const mapState={map:null,baseLayers:{},baseLayerControl:null,activeBaseLayerKey:'',droneMarkersLayer:null,workAreasLayer:null,markers:{},workAreas:{},viewSet:false};
+const mapState={map:null,baseLayers:{},baseLayerControl:null,activeBaseLayerKey:'',droneMarkersLayer:null,workAreasLayer:null,markers:{},workAreas:{},viewSet:false,userHasMovedMap:false};
 function fmt(v,r){if(v==null)return'--';if(typeof v==='number')return v.toFixed(r);return v}
 function showLayerNotice(message){
   const notice=document.getElementById('layerNotice');
@@ -529,6 +529,7 @@ function initializeMap(){
     const key=Object.keys(mapState.baseLayers).find(function(name){return mapState.baseLayers[name]===event.layer});
     if(key)mapState.activeBaseLayerKey=key;
   });
+  mapState.map.on('movestart',function(){ mapState.userHasMovedMap=true; });
 }
 function ensureGoogleMaps(){
   if(!GOOGLE_MAPS_API_KEY)return Promise.resolve(false);
@@ -560,15 +561,15 @@ async function refresh(){
   try{
     const response=await fetch('/dash-all',{cache:'no-store'});
     const data=await response.json();
-    const ids=Object.keys(data).sort();let firstValid=null;
-    ids.forEach(function(id){
+    const ids=Object.keys(data).sort();
+    const onlineDrones=[];
       const d=data[id];
       const lat=d.latitude!=null?d.latitude:null;
       const lon=d.longitude!=null?d.longitude:null;
       const hasCoords=lat!=null&&lon!=null;
       const online=hasCoords&&d.offline!==true;
-      if(hasCoords&&!firstValid)firstValid={lat:lat,lon:lon};
-      const color=online?'#00FF88':'#FF6B2C';
+      const online=hasCoords&&d.offline!==true;
+      if(online){ onlineDrones.push({id:id,lat:lat,lon:lon,d:d}); }
       const popup='<div style=\"min-width:180px\"><div style=\"font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px\">'+id+'</div><div style=\"font-size:11px;color:#aaa\">'+(online?'<span style=\"color:#00FF88\">ONLINE</span>':'<span style=\"color:#FF6B2C\">OFFLINE</span>')+'</div><hr style=\"border:0;border-top:1px solid #333;margin:6px 0\"><div style=\"font-size:12px\">Piloto: <b>'+(d._pilot||'-')+'</b><br>Fazenda: <b>'+(d._farm||'-')+'</b></div><hr style=\"border:0;border-top:1px solid #333;margin:6px 0\"><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px\"><div>Bateria: <b>'+(d.batteryPercent ?? '--')+'%</b></div><div>Tanque: <b>'+fmt(d.tankLiters,2)+'L</b></div><div>Vel: <b>'+fmt(d.speedKmh,1)+'km/h</b></div><div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div><div>Sats: <b>'+(d.signalStrength||'-')+'</b></div><div>Status: <b>'+(d.operationalStatus||'-')+'</b></div><div>RTK: <b>'+(d.rtkStatus||'-')+'</b></div></div></div>';
       if(mapState.markers[id]){
         mapState.markers[id].marker.setLatLng([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]]).setPopupContent(popup);
@@ -601,12 +602,12 @@ async function refresh(){
         delete mapState.workAreas[id];
       }
     });
-    if(firstValid&&!mapState.viewSet){mapState.map.setView([firstValid.lat,firstValid.lon],15);mapState.viewSet=true;}
-  }catch(e){console.error(e);}
-}
-async function bootstrapMap(){
-  initializeMap();
-  const googleEnabled=await ensureGoogleMaps();
+    });
+    if(onlineDrones.length>0&&!mapState.userHasMovedMap){
+      const firstValid=onlineDrones[0];
+      mapState.map.setView([firstValid.lat,firstValid.lon],mapState.viewSet?mapState.map.getZoom():15);
+      mapState.viewSet=true;
+    }
   mapState.baseLayers=createBaseLayers(googleEnabled);
   applyBaseLayer(getDefaultBaseLayerKey(googleEnabled));
   setupLayerControl();
