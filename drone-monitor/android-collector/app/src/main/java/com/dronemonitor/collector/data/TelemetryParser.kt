@@ -86,17 +86,19 @@ class TelemetryParser {
                     signalStrength = extractIntegerValue(value)
                 }
                 // Tanque / Spray
-                "flowRemain", "spray_2_remain_capacity" -> {
+                "flowRemain", "spray_2_remain_capacity",
+                "spray_remain", "spray_volume", "tank_volume",
+                "liquid_remain", "liquid_volume", "remain_capacity", "capacity" -> {
                     tankLiters = extractNumericValue(value)
                 }
-                "sprayedPesticide" -> {
+                "sprayedPesticide", "spray_task_area", "sprayed_area", "work_area" -> {
                     hectares = extractNumericValue(value)
                 }
                 // Coordenadas GPS
-                "latitude" -> {
+                "latitude", "gps_latitude", "location_latitude" -> {
                     latitude = extractNumericValue(value)
                 }
-                "longitude" -> {
+                "longitude", "gps_longitude", "location_longitude" -> {
                     longitude = extractNumericValue(value)
                 }
                 // Status do drone
@@ -164,6 +166,8 @@ class TelemetryParser {
         val speedMs = speedKmh?.let { it / 3.6 }
         val srcAcc = TelemetrySource.ACCESSIBILITY
         val srcUnav = TelemetrySource.UNAVAILABLE
+
+        FileLogger.i("TelemetryParser", "[parseFromResourceIds] altitude=$altitude speedKmh=$speedKmh flowRate=$flowRate hectares=$hectares battery=$battery tankLiters=$tankLiters signal=$signalStrength rtk=$rtkStatus lat=$latitude lon=$longitude status=$operationalStatus")
 
         return TelemetryData(
             speed = speedMs,

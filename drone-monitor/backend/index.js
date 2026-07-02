@@ -429,7 +429,7 @@ const MAP_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<div class="overlay">AGRYON GPS <a href="/app">Voltar</a></div>
+<div class="overlay">AGRYON GPS <a href="/app/">Voltar</a></div>
 <div id="layerNotice" class="layer-notice" style="display:none"></div>
 <div id="loading" class="loading">Inicializando mapa...<br><span style="font-size:11px;color:#666">Aguardando posicao do drone</span></div>
 <div id="map"></div>

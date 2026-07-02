@@ -145,6 +145,7 @@ class DroneAccessibilityService : AccessibilityService() {
         // === MODO 1: Leitura direta por Resource ID (mais rapido e preciso) ===
         if (isDjiApp) {
             val idValues = collectByResourceIds(root)
+            FileLogger.i(TAG, "[collectFromWindow] pkg=$pkgName idsEncontrados=${idValues.size}")
             if (idValues.isNotEmpty()) {
                 FileLogger.i(TAG, "IDs DJI lidos: ${idValues.size} valores")
                 idValues.forEach { (k, v) ->
@@ -156,6 +157,8 @@ class DroneAccessibilityService : AccessibilityService() {
                     try { root.recycle() } catch (_: Exception) {}
                     return telemetryFromIds
                 }
+            } else {
+                FileLogger.w(TAG, "Nenhum Resource ID DJI encontrado. Sera usado fallback de textos.")
             }
         }
 
@@ -308,9 +311,23 @@ class DroneAccessibilityService : AccessibilityService() {
         "com.dji.agras:id/sprayedPesticide",
         "com.dji.agras:id/spray_2_remain_capacity",
         "com.dji.agras:id/spray_system_status",
+        "com.dji.agras:id/spray_remain",
+        "com.dji.agras:id/spray_volume",
+        "com.dji.agras:id/tank_volume",
+        "com.dji.agras:id/liquid_remain",
+        "com.dji.agras:id/liquid_volume",
+        "com.dji.agras:id/remain_capacity",
+        "com.dji.agras:id/capacity",
+        "com.dji.agras:id/spray_task_area",
+        "com.dji.agras:id/sprayed_area",
+        "com.dji.agras:id/work_area",
         // Coordenadas
         "com.dji.agras:id/latitude",
         "com.dji.agras:id/longitude",
+        "com.dji.agras:id/gps_latitude",
+        "com.dji.agras:id/gps_longitude",
+        "com.dji.agras:id/location_latitude",
+        "com.dji.agras:id/location_longitude",
         // RTK
         "com.dji.agras:id/rtk_diagnose_type",
         "com.dji.agras:id/rtk_diagnose_gps_num",
@@ -371,13 +388,27 @@ class DroneAccessibilityService : AccessibilityService() {
             "flow_speed",
             "sprayedPesticide",
             "spray_2_remain_capacity",
+            "spray_remain",
+            "spray_volume",
+            "tank_volume",
+            "liquid_remain",
+            "liquid_volume",
+            "remain_capacity",
+            "capacity",
+            "spray_task_area",
+            "sprayed_area",
+            "work_area",
             "batteryRemain",
             "battery_volume",
             "satellites",
             "signal_level_num",
             "signal",
             "latitude",
-            "longitude"
+            "longitude",
+            "gps_latitude",
+            "gps_longitude",
+            "location_latitude",
+            "location_longitude"
         )
 
         if (shortId in numericIds) {
