@@ -450,7 +450,7 @@ function showLayerNotice(message){
   notice.textContent=message;
   notice.style.display='block';
 }
-function setLoading(message){const el=document.getElementById('loading');if(!el)return;el.innerHTML=message?message.replace(/\\n/g,'<br>'):'';el.className=message?'loading':'loading hidden';}
+function setLoading(message){const el=document.getElementById('loading');if(!el)return;el.innerHTML=message?message.split('\\n').join('<br>'):'';el.className=message?'loading':'loading hidden';}
 function createWorkArea(lat, lon, hectares){
   if(lat==null||lon==null)return null;
   const size=hectares?Math.sqrt(hectares)*0.00045:0.0009;
