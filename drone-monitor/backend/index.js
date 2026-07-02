@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const url = require('url');
@@ -147,7 +147,7 @@ function getAppHtml() {
   try {
     return fs.readFileSync(APP_HTML_FILE, 'utf8');
   } catch {
-    return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Agryon Control</title></head><body style="font-family:Segoe UI,sans-serif;background:#0b0f19;color:#e5e7eb;display:flex;align-items:center;justify-content:center;min-height:100vh"><div><h1 style="color:#34d399">AGRYON CONTROL</h1><p>Falha ao carregar a interface autenticada.</p><p><a href="/dashboard.html" style="color:#34d399">Abrir dashboard público</a></p></div></body></html>';
+    return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Agryon Control</title></head><body style="font-family:Segoe UI,sans-serif;background:#0b0f19;color:#e5e7eb;display:flex;align-items:center;justify-content:center;min-height:100vh"><div><h1 style="color:#34d399">AGRYON CONTROL</h1><p>Falha ao carregar a interface autenticada.</p><p><a href="/dashboard.html" style="color:#34d399">Abrir dashboard pÃºblico</a></p></div></body></html>';
   }
 }
 
@@ -421,15 +421,17 @@ const MAP_HTML = `<!DOCTYPE html>
 <script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.13.6/Leaflet.GoogleMutant.js"></script>
 <style>
 *{margin:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#0b0f19;color:#e0e0e0}
-#map{height:100vh;width:100vw}.overlay{position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(11,15,25,0.95);padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:12px;color:#9aa0a6;z-index:1000}
+#map{height:100vh;width:100vw;background:#0b0f19}.overlay{position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(11,15,25,0.95);padding:6px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:12px;color:#9aa0a6;z-index:1000}
 .overlay a{color:#00FF88;text-decoration:none;margin-left:8px}.legend{position:fixed;bottom:8px;right:8px;background:rgba(11,15,25,0.95);padding:8px 12px;border-radius:8px;border:1px solid rgba(0,255,136,0.2);font-size:11px;color:#9aa0a6;z-index:1000}
 .legend-item{display:flex;align-items:center;gap:6px;margin:2px 0}.legend-color{width:12px;height:12px;border-radius:2px}.layer-notice{position:fixed;top:56px;right:8px;max-width:280px;background:rgba(11,15,25,0.95);padding:8px 10px;border-radius:10px;border:1px solid rgba(0,255,136,0.16);font-size:11px;color:#cbd5e1;z-index:1000;line-height:1.4}.agryon-layers-title{margin-bottom:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8}
 .leaflet-top.leaflet-right{top:8px;right:8px}.leaflet-control-layers{border:1px solid rgba(0,255,136,0.2)!important;background:rgba(11,15,25,0.96)!important;color:#e2e8f0!important;border-radius:10px!important;box-shadow:0 10px 30px rgba(0,0,0,0.28)!important}.leaflet-control-layers-toggle{filter:invert(89%) sepia(33%) saturate(669%) hue-rotate(92deg) brightness(96%) contrast(88%)}.leaflet-control-layers-expanded{padding:10px 12px!important}.leaflet-control-layers label{font-size:12px}
+.loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#9aa0a6;font-size:14px;z-index:500;text-align:center}.loading.hidden{display:none}
 </style>
 </head>
 <body>
 <div class="overlay">AGRYON GPS <a href="/app">Voltar</a></div>
 <div id="layerNotice" class="layer-notice" style="display:none"></div>
+<div id="loading" class="loading">Inicializando mapa...<br><span style="font-size:11px;color:#666">Aguardando posicao do drone</span></div>
 <div id="map"></div>
 <div class="legend">
   <div class="legend-item"><div class="legend-color" style="background:#00FF88"></div>Drone online</div>
@@ -440,7 +442,7 @@ const MAP_HTML = `<!DOCTYPE html>
 const GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY_JSON};
 const FALLBACK_CENTER=[-14.2,-51.9];
 const mapState={map:null,baseLayers:{},baseLayerControl:null,activeBaseLayerKey:'',droneMarkersLayer:null,workAreasLayer:null,markers:{},workAreas:{},viewSet:false,userHasMovedMap:false};
-function fmt(v,r){if(v==null)return'--';if(typeof v==='number')return v.toFixed(r);return v}
+function fmt(v,r){if(v==null||v==='')return'--';if(typeof v==='number')return v.toFixed(r);return v}
 function showLayerNotice(message){
   const notice=document.getElementById('layerNotice');
   if(!notice)return;
@@ -448,6 +450,7 @@ function showLayerNotice(message){
   notice.textContent=message;
   notice.style.display='block';
 }
+function setLoading(message){const el=document.getElementById('loading');if(!el)return;el.innerHTML=message?message.replace(/\n/g,'<br>'):'';el.className=message?'loading':'loading hidden';}
 function createWorkArea(lat, lon, hectares){
   if(lat==null||lon==null)return null;
   const size=hectares?Math.sqrt(hectares)*0.00045:0.0009;
@@ -465,46 +468,23 @@ function createOpenStreetMapLayer(){
 }
 function createBaseLayers(googleEnabled){
   const baseLayers={};
-  const availableLayerNames=${BASE_LAYER_NAMES_JSON};
-  availableLayerNames.forEach(function(layerName){
-    if(layerName===${GOOGLE_HYBRID_LAYER_JSON}){
-      if(googleEnabled&&L.gridLayer&&typeof L.gridLayer.googleMutant==='function'){
-        baseLayers[layerName]=L.gridLayer.googleMutant({type:'hybrid',maxZoom:21});
-      }
-      return;
-    }
-    if(layerName===${GOOGLE_SATELLITE_LAYER_JSON}){
-      if(googleEnabled&&L.gridLayer&&typeof L.gridLayer.googleMutant==='function'){
-        baseLayers[layerName]=L.gridLayer.googleMutant({type:'satellite',maxZoom:21});
-      }
-      return;
-    }
-    if(layerName===${OPEN_STREET_MAP_LAYER_JSON}){
-      baseLayers[layerName]=createOpenStreetMapLayer();
-      return;
-    }
-    if(layerName===${ESRI_WORLD_IMAGERY_LAYER_JSON}){
-      baseLayers[layerName]=createEsriWorldImageryLayer();
-    }
-  });
+  if(googleEnabled&&L.gridLayer&&typeof L.gridLayer.googleMutant==='function'){
+    try{baseLayers['Google Hybrid']=L.gridLayer.googleMutant({type:'hybrid',maxZoom:21});}catch(e){console.error('Google Hybrid failed',e);}
+    try{baseLayers['Google Satellite']=L.gridLayer.googleMutant({type:'satellite',maxZoom:21});}catch(e){console.error('Google Satellite failed',e);}
+  }
+  baseLayers['OpenStreetMap']=createOpenStreetMapLayer();
+  baseLayers['Esri World Imagery']=createEsriWorldImageryLayer();
   return baseLayers;
 }
-function getDefaultBaseLayerKey(googleEnabled){
-  return googleEnabled?${DEFAULT_GOOGLE_BASE_LAYER_JSON}:${DEFAULT_FALLBACK_BASE_LAYER_JSON};
-}
-function getLayerNoticeMessage(apiKeyConfigured, googleEnabled){
-  if(!apiKeyConfigured)return ${NOTICE_MISSING_API_KEY_JSON};
-  if(!googleEnabled)return ${NOTICE_GOOGLE_UNAVAILABLE_JSON};
-  return '';
-}
 function applyBaseLayer(layerKey){
-  if(!mapState.map||!mapState.baseLayers[layerKey])return;
+  if(!mapState.map||!mapState.baseLayers[layerKey])return false;
   if(mapState.activeBaseLayerKey&&mapState.baseLayers[mapState.activeBaseLayerKey]){
     mapState.map.removeLayer(mapState.baseLayers[mapState.activeBaseLayerKey]);
   }
   mapState.activeBaseLayerKey=layerKey;
   const nextLayer=mapState.baseLayers[layerKey];
   if(!mapState.map.hasLayer(nextLayer))nextLayer.addTo(mapState.map);
+  return true;
 }
 function setupLayerControl(){
   if(mapState.baseLayerControl)mapState.map.removeControl(mapState.baseLayerControl);
@@ -537,7 +517,7 @@ function ensureGoogleMaps(){
   return new Promise(function(resolve){
     let settled=false;
     const finish=function(value){if(settled)return;settled=true;resolve(value);};
-    const existing=document.querySelector('script[data-google-maps=\"true\"]');
+    const existing=document.querySelector('script[data-google-maps="true"]');
     const callbackName='__agryonGoogleMapsReady';
     window[callbackName]=function(){finish(!!(window.google&&window.google.maps));delete window[callbackName];};
     if(existing){
@@ -563,14 +543,15 @@ async function refresh(){
     const data=await response.json();
     const ids=Object.keys(data).sort();
     const onlineDrones=[];
+    ids.forEach(function(id){
       const d=data[id];
       const lat=d.latitude!=null?d.latitude:null;
       const lon=d.longitude!=null?d.longitude:null;
       const hasCoords=lat!=null&&lon!=null;
       const online=hasCoords&&d.offline!==true;
-      const online=hasCoords&&d.offline!==true;
-      if(online){ onlineDrones.push({id:id,lat:lat,lon:lon,d:d}); }
-      const popup='<div style=\"min-width:180px\"><div style=\"font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px\">'+id+'</div><div style=\"font-size:11px;color:#aaa\">'+(online?'<span style=\"color:#00FF88\">ONLINE</span>':'<span style=\"color:#FF6B2C\">OFFLINE</span>')+'</div><hr style=\"border:0;border-top:1px solid #333;margin:6px 0\"><div style=\"font-size:12px\">Piloto: <b>'+(d._pilot||'-')+'</b><br>Fazenda: <b>'+(d._farm||'-')+'</b></div><hr style=\"border:0;border-top:1px solid #333;margin:6px 0\"><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px\"><div>Bateria: <b>'+(d.batteryPercent ?? '--')+'%</b></div><div>Tanque: <b>'+fmt(d.tankLiters,2)+'L</b></div><div>Vel: <b>'+fmt(d.speedKmh,1)+'km/h</b></div><div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div><div>Sats: <b>'+(d.signalStrength||'-')+'</b></div><div>Status: <b>'+(d.operationalStatus||'-')+'</b></div><div>RTK: <b>'+(d.rtkStatus||'-')+'</b></div></div></div>';
+      if(online){onlineDrones.push({id:id,lat:lat,lon:lon,d:d});}
+      const color=online?'#00FF88':'#FF6B2C';
+      const popup='<div style="min-width:180px"><div style="font-size:14px;font-weight:700;color:#00FF88;margin-bottom:6px">'+id+'</div><div style="font-size:11px;color:#aaa">'+(online?'<span style="color:#00FF88">ONLINE</span>':'<span style="color:#FF6B2C">OFFLINE</span>')+'</div><hr style="border:0;border-top:1px solid #333;margin:6px 0" /><div style="font-size:12px">Piloto: <b>'+(d._pilot||'-')+'</b><br />Fazenda: <b>'+(d._farm||'-')+'</b></div><hr style="border:0;border-top:1px solid #333;margin:6px 0" /><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px"><div>Bateria: <b>'+(d.batteryPercent ?? '--')+'%</b></div><div>Tanque: <b>'+fmt(d.tankLiters,2)+'L</b></div><div>Vel: <b>'+fmt(d.speedKmh,1)+'km/h</b></div><div>Alt: <b>'+fmt(d.altitude,1)+'m</b></div><div>Sats: <b>'+(d.signalStrength||'-')+'</b></div><div>Status: <b>'+(d.operationalStatus||'-')+'</b></div><div>RTK: <b>'+(d.rtkStatus||'-')+'</b></div></div></div>';
       if(mapState.markers[id]){
         mapState.markers[id].marker.setLatLng([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]]).setPopupContent(popup);
         mapState.markers[id].circle.setLatLng([lat||FALLBACK_CENTER[0],lon||FALLBACK_CENTER[1]]).setStyle({fillColor:color,color:color});
@@ -602,20 +583,37 @@ async function refresh(){
         delete mapState.workAreas[id];
       }
     });
-    });
-    if(onlineDrones.length>0&&!mapState.userHasMovedMap){
+    if(onlineDrones.length>0){
       const firstValid=onlineDrones[0];
-      mapState.map.setView([firstValid.lat,firstValid.lon],mapState.viewSet?mapState.map.getZoom():15);
+      if(!mapState.userHasMovedMap){
+        mapState.map.setView([firstValid.lat,firstValid.lon],mapState.viewSet?mapState.map.getZoom():15);
+      }
+      setLoading(false);
       mapState.viewSet=true;
+    }else{
+      setLoading('Aguardando posicao do drone...');
     }
-  mapState.baseLayers=createBaseLayers(googleEnabled);
-  applyBaseLayer(getDefaultBaseLayerKey(googleEnabled));
-  setupLayerControl();
-  showLayerNotice('');
-  const layerNotice=getLayerNoticeMessage(Boolean(GOOGLE_MAPS_API_KEY),googleEnabled);
-  if(layerNotice)showLayerNotice(layerNotice);
-  await refresh();
-  setInterval(refresh,5000);
+  }catch(e){console.error(e);setLoading('Erro ao carregar dados do mapa.');}
+}
+async function bootstrapMap(){
+  try{
+    initializeMap();
+    const googleEnabled=await ensureGoogleMaps();
+    mapState.baseLayers=createBaseLayers(googleEnabled);
+    const defaultKey=mapState.baseLayers['Google Hybrid']?'Google Hybrid':(mapState.baseLayers['Esri World Imagery']?'Esri World Imagery':'OpenStreetMap');
+    applyBaseLayer(defaultKey);
+    setupLayerControl();
+    if(!googleEnabled&&GOOGLE_MAPS_API_KEY){
+      showLayerNotice('Google Hybrid indisponivel. Exibindo Esri World Imagery com referencias geograficas.');
+    }else if(!GOOGLE_MAPS_API_KEY){
+      showLayerNotice('Google Hybrid sera habilitado quando a API Key oficial do Google Maps for configurada.');
+    }
+    await refresh();
+    setInterval(refresh,5000);
+  }catch(e){
+    console.error('bootstrapMap failed',e);
+    setLoading('Falha ao inicializar o mapa. Recarregue a pagina.');
+  }
 }
 bootstrapMap();
 </script>
